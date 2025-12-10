@@ -1,0 +1,11 @@
+torch
+torchvision
+torchaudio
+rdkit
+selfies
+telebot
+pubchempy
+python-dotenv
+pillow
+scipy
+tqdm

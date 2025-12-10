@@ -1,0 +1,26 @@
+# Python garbage
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+
+# Environment variables (SECRETS!)
+.env
+
+# Logs
+logs/
+*.log
+
+# Data (Too big for GitHub)
+data/checkpoints/
+data/gnn_datasets/
+data/processed/train_selfies.csv
+
+# IDE settings
+.vscode/
+.idea/
+
+# OS trash
+.DS_Store
+Thumbs.db
