@@ -1,3 +1,10 @@
+"""
+Author: Ali (Troxter222)
+Project: MUG (Molecular Universe Generator)
+Date: 2025
+License: MIT
+"""
+
 import random
 from typing import Dict, List, Tuple, Optional, Any
 from rdkit import Chem

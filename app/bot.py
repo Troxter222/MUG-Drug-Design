@@ -1,6 +1,8 @@
 """
-MUG System v7.1: Molecular Universe Generator
-Main Telegram Bot Controller.
+Author: Ali (Troxter222)
+Project: MUG (Molecular Universe Generator)
+Date: 2025
+License: MIT
 """
 
 import telebot
@@ -56,7 +58,7 @@ rdBase.DisableLog('rdApp.*')
 # --- SYSTEM INITIALIZATION ---
 try:
     bot = telebot.TeleBot(Config.API_TOKEN)
-    logger.info("🤖 Bot Interface Initialized.")
+    logger.info(f"🤖 Bot Interface Initialized. Device: {Config.DEVICE}")
 except Exception as e:
     logger.critical(f"Failed to initialize TeleBot: {e}")
     exit(1)
@@ -72,6 +74,7 @@ def load_ai_core() -> Tuple[Optional[MolecularVAE], Optional[Vocabulary]]:
     logger.info("⏳ Loading Neural Core...")
     
     try:
+        # 1. Load Vocabulary
         with open(Config.VOCAB_PATH, 'r') as f:
             chars = json.load(f)
         
@@ -81,10 +84,12 @@ def load_ai_core() -> Tuple[Optional[MolecularVAE], Optional[Vocabulary]]:
             
         vocab = Vocabulary(chars)
         
+        # 2. Load Model
         if not os.path.exists(Config.CHECKPOINT_PATH):
             raise FileNotFoundError(f"Checkpoint not found at {Config.CHECKPOINT_PATH}")
             
         state_dict = torch.load(Config.CHECKPOINT_PATH, map_location=Config.DEVICE)
+        
         saved_vocab_size = state_dict['embedding.weight'].shape[0]
         
         if saved_vocab_size != len(vocab):

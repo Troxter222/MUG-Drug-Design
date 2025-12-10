@@ -1,3 +1,10 @@
+"""
+Author: Ali (Troxter222)
+Project: MUG (Molecular Universe Generator)
+Date: 2025
+License: MIT
+"""
+
 import os
 import logging
 

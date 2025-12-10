@@ -1,3 +1,10 @@
+"""
+Author: Ali (Troxter222)
+Project: MUG (Molecular Universe Generator)
+Date: 2025
+License: MIT
+"""
+
 from typing import List
 from rdkit import Chem
 from rdkit.Chem import BRICS

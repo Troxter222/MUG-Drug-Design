@@ -1,3 +1,10 @@
+"""
+Author: Ali (Troxter222)
+Project: MUG (Molecular Universe Generator)
+Date: 2025
+License: MIT
+"""
+
 import io
 from typing import Tuple
 from rdkit import Chem
@@ -12,8 +19,8 @@ class VisualizationService:
 
     # --- Rendering Configuration ---
     IMAGE_SIZE: Tuple[int, int] = (1000, 1000)
-    BOND_LINE_WIDTH: int = 5
-    FONT_SIZE: int = 40
+    BOND_LINE_WIDTH: int = 4
+    # FONT_SIZE убрали, доверимся авто-настройке RDKit
     
     # Deep Navy Blue background (RGBA)
     THEME_BACKGROUND_COLOR: Tuple[int, int, int, int] = (15, 17, 26, 255) 
@@ -21,19 +28,7 @@ class VisualizationService:
     @staticmethod
     def draw_cyberpunk(mol: Chem.Mol) -> Image.Image:
         """
-        Renders a molecule in a 'Cyberpunk' aesthetic: 
-        neon-like lines on a deep dark background.
-
-        Mechanism:
-        1. Renders the molecule with transparent background using RDKit.
-        2. Uses PIL to invert the color channels (Black lines -> White/Neon).
-        3. Composites the result onto a custom dark background.
-
-        Args:
-            mol: The RDKit molecule object.
-
-        Returns:
-            PIL.Image.Image: The final composited image object.
+        Renders a molecule in a 'Cyberpunk' aesthetic.
         """
         # 1. RDKit Rendering (High Resolution)
         d2d = rdMolDraw2D.MolDraw2DCairo(
@@ -42,9 +37,13 @@ class VisualizationService:
         )
         
         dopts = d2d.drawOptions()
-        dopts.bondLineWidth = VisualizationService.BOND_LINE_WIDTH
-        dopts.clearBackground = False  # Important: Keep background transparent
-        dopts.atomLabelFontSize = VisualizationService.FONT_SIZE
+        
+        try:
+            dopts.bondLineWidth = VisualizationService.BOND_LINE_WIDTH
+            dopts.clearBackground = False
+            dopts.additionalAtomLabelPadding = 0.1
+        except Exception:
+            pass
         
         # Prepare topology and coordinates, then draw
         rdMolDraw2D.PrepareAndDrawMolecule(d2d, mol)
@@ -61,7 +60,6 @@ class VisualizationService:
         r, g, b, a = foreground_img.split()
         
         # Invert RGB channels (Black atoms/bonds become White/Light)
-        # We keep the Alpha channel 'a' as is, to preserve transparency shape
         rgb_image = Image.merge('RGB', (r, g, b))
         inverted_rgb = ImageOps.invert(rgb_image)
         r_inv, g_inv, b_inv = inverted_rgb.split()
