@@ -8,7 +8,6 @@ Thumbs.db
 Desktop.ini
 
 # --- Virtual Environments ---
-# Игнорируем папку с библиотеками, она весит сотни мегабайт
 .venv/
 venv/
 env/
@@ -20,9 +19,7 @@ ENV/
 *.swp
 
 # --- Secrets & Configuration ---
-# САМОЕ ВАЖНОЕ: Никогда не грузи ключи API
 .env
-# .env.example мы оставляем, он нужен для примера
 
 # --- Logs & Monitoring ---
 logs/
@@ -30,36 +27,25 @@ logs/
 training_logs/
 
 # --- Heavy Data (MUG Specific) ---
-# Игнорируем папки с чекпоинтами (веса моделей весят много)
 *.pth
 checkpoints/
 checkpoints_*/
 *.pt
 *.ckpt
 
-# Игнорируем сырые данные (CSV по 100мб+)
 data/raw/
 data/processed/
 data/gnn_datasets/
 dataset/raw/
 dataset/processed/
 
-# Игнорируем кэш
 cache/
 
 # --- Generated Outputs ---
-# Не нужно грузить результаты работы бота
-*.png
 *.jpg
 *.svg
 *.sdf
 *.mol
-*.csv
-generated_molecules.txt
-benchmark_results.csv
-final_benchmark.csv
 
 # --- Specific Training Artifacts ---
-# Графики обучения и временные файлы JSON
 *_stats.json
-*.png
