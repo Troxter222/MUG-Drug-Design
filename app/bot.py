@@ -1,352 +1,601 @@
 """
+Molecular Universe Generator (MUG) - AI-Powered De Novo Drug Design Platform
 Author: Ali (Troxter222)
-Project: MUG (Molecular Universe Generator)
-Date: 2025
 License: MIT
+Date: 2025
+
+A deep learning-based system for generating novel molecular structures
+with therapeutic potential using transformer-based VAE architecture.
 """
 
+import io
+import json
+import logging
+import os
+from logging.handlers import RotatingFileHandler
+from typing import Dict, Optional, Tuple
+
+import selfies as sf
 import telebot
 import torch
-import json
-import os
-import io
-import logging
-from typing import Optional, Tuple, Dict
-
-# External Libraries
-import selfies as sf
-from telebot import types
-from rdkit import Chem, DataStructs
-from logging.handlers import RotatingFileHandler
+from rdkit import Chem, DataStructs, rdBase
 from rdkit.Chem import AllChem, Descriptors, Draw
-from rdkit import rdBase
+from telebot import types
 
-# MUG Modules
 from app.config import Config
 from app.core.engine import MolecularVAE
+from app.core.transformer_model import MoleculeTransformer
 from app.core.vocab import Vocabulary
-from app.services.chemistry import ChemistryService
 from app.services.biology import BiologyService
+from app.services.chemistry import ChemistryService
+from app.services.linguistics import LinguisticsService
 from app.services.retrosynthesis import RetrosynthesisService
 from app.services.visualization import VisualizationService
-from app.services.linguistics import LinguisticsService
 
-# --- CONFIGURATION & LOGGING ---
-Config.LOG_DIR.mkdir(parents=True, exist_ok=True)
 
-log_formatter = logging.Formatter('%(asctime)s | %(levelname)-8s | %(name)-15s | %(message)s')
-
-file_handler = RotatingFileHandler(Config.LOG_FILE, maxBytes=5*1024*1024, backupCount=3, encoding='utf-8')
-file_handler.setFormatter(log_formatter)
-file_handler.setLevel(logging.INFO)
-
-console_handler = logging.StreamHandler()
-console_handler.setFormatter(log_formatter)
-console_handler.setLevel(logging.INFO)
-
-root_logger = logging.getLogger()
-root_logger.setLevel(logging.INFO)
-root_logger.addHandler(file_handler)
-root_logger.addHandler(console_handler)
-
-logger = logging.getLogger("BotController")
-
-logging.getLogger("rdkit").setLevel(logging.WARNING)
-logging.getLogger("urllib3").setLevel(logging.WARNING)
-rdBase.DisableLog('rdApp.*')
-
-# --- SYSTEM INITIALIZATION ---
-try:
-    bot = telebot.TeleBot(Config.API_TOKEN)
-    logger.info(f"🤖 Bot Interface Initialized. Device: {Config.DEVICE}")
-except Exception as e:
-    logger.critical(f"Failed to initialize TeleBot: {e}")
-    exit(1)
-
-# NLP Init
-try:
-    naming = LinguisticsService()
-except Exception:
-    naming = None
-
-# Load AI Core
-def load_ai_core() -> Tuple[Optional[MolecularVAE], Optional[Vocabulary]]:
-    logger.info("⏳ Loading Neural Core...")
+def setup_logging() -> logging.Logger:
+    """Configure logging system with file rotation and console output."""
+    Config.LOG_DIR.mkdir(parents=True, exist_ok=True)
     
+    formatter = logging.Formatter(
+        '%(asctime)s | %(levelname)-8s | %(name)-15s | %(message)s'
+    )
+    
+    file_handler = RotatingFileHandler(
+        Config.LOG_FILE, 
+        maxBytes=5*1024*1024, 
+        backupCount=3, 
+        encoding='utf-8'
+    )
+    file_handler.setFormatter(formatter)
+    file_handler.setLevel(logging.INFO)
+    
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    console_handler.setLevel(logging.INFO)
+    
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
+    root_logger.addHandler(file_handler)
+    root_logger.addHandler(console_handler)
+    
+    logging.getLogger("rdkit").setLevel(logging.WARNING)
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
+    rdBase.DisableLog('rdApp.*')
+    
+    return logging.getLogger("MUG.Controller")
+
+
+logger = setup_logging()
+
+
+def initialize_bot() -> telebot.TeleBot:
+    """Initialize Telegram bot interface."""
     try:
-        # 1. Load Vocabulary
-        with open(Config.VOCAB_PATH, 'r') as f:
-            chars = json.load(f)
-        
-        required_tokens = ['<pad>', '<sos>', '<eos>']
-        if '<sos>' not in chars:
-            chars = required_tokens + sorted(chars)
-            
-        vocab = Vocabulary(chars)
-        
-        # 2. Load Model
-        if not os.path.exists(Config.CHECKPOINT_PATH):
-            raise FileNotFoundError(f"Checkpoint not found at {Config.CHECKPOINT_PATH}")
-            
-        state_dict = torch.load(Config.CHECKPOINT_PATH, map_location=Config.DEVICE)
-        
-        saved_vocab_size = state_dict['embedding.weight'].shape[0]
-        
-        if saved_vocab_size != len(vocab):
-            logger.warning(f"⚠️ Resizing model embeddings: {len(vocab)} -> {saved_vocab_size}")
-            model = MolecularVAE(saved_vocab_size, Config.EMBED_SIZE, Config.HIDDEN_SIZE, Config.LATENT_SIZE, Config.NUM_LAYERS)
-        else:
-            model = MolecularVAE(len(vocab), Config.EMBED_SIZE, Config.HIDDEN_SIZE, Config.LATENT_SIZE, Config.NUM_LAYERS)
-            
-        model.load_state_dict(state_dict)
-        model.to(Config.DEVICE)
-        model.eval()
-        
-        logger.info("✅ MUG System Online.")
-        return model, vocab
-        
+        bot_instance = telebot.TeleBot(Config.API_TOKEN)
+        logger.info(f"Bot initialized successfully. Device: {Config.DEVICE}")
+        return bot_instance
     except Exception as e:
-        logger.error(f"❌ Core Initialization Failed: {e}")
-        return None, None
+        logger.critical(f"Failed to initialize bot: {e}")
+        raise
 
-model, vocab = load_ai_core()
-user_session_cache: Dict[int, str] = {}
 
-# --- PIPELINE CONTROLLER ---
-
-def run_generation_pipeline(chat_id: int, target_info: Optional[Dict] = None, target_cat: str = "") -> None:
-    """
-    Orchestrates the full generation process.
-    """
-    bot.send_chat_action(chat_id, 'upload_photo')
+def load_vocabulary() -> Vocabulary:
+    """Load or initialize molecular vocabulary."""
+    with open(Config.VOCAB_PATH, 'r') as f:
+        chars = json.load(f)
     
-    candidate = None
-    best_score = -1000
+    required_tokens = ['<pad>', '<sos>', '<eos>']
+    if '<sos>' not in chars:
+        chars = required_tokens + sorted(chars)
     
+    return Vocabulary(chars)
+
+
+def load_model(vocab: Vocabulary) -> MoleculeTransformer:
+    """
+    Load pre-trained transformer model with checkpoint validation.
+    
+    Args:
+        vocab: Vocabulary object containing token mappings
+        
+    Returns:
+        Loaded and initialized transformer model
+    """
+    if not os.path.exists(Config.CHECKPOINT_PATH):
+        raise FileNotFoundError(f"Model checkpoint not found: {Config.CHECKPOINT_PATH}")
+    
+    model = MoleculeTransformer(
+        vocab_size=len(vocab),
+        d_model=Config.EMBED_SIZE,
+        nhead=Config.NHEAD,
+        num_encoder_layers=Config.NUM_LAYERS,
+        num_decoder_layers=Config.NUM_LAYERS,
+        dim_feedforward=Config.HIDDEN_SIZE,
+        latent_size=Config.LATENT_SIZE
+    ).to(Config.DEVICE)
+    
+    state_dict = torch.load(Config.CHECKPOINT_PATH, map_location=Config.DEVICE)
+    
+    saved_vocab_size = state_dict['embedding.weight'].shape[0]
+    if saved_vocab_size != len(vocab):
+        logger.warning(
+            f"Vocabulary size mismatch. Expected: {len(vocab)}, "
+            f"Found: {saved_vocab_size}. Reinitializing model."
+        )
+        model = MoleculeTransformer(
+            vocab_size=saved_vocab_size,
+            d_model=Config.EMBED_SIZE,
+            nhead=Config.NHEAD,
+            num_encoder_layers=Config.NUM_LAYERS,
+            num_decoder_layers=Config.NUM_LAYERS,
+            dim_feedforward=Config.HIDDEN_SIZE,
+            latent_size=Config.LATENT_SIZE
+        ).to(Config.DEVICE)
+    
+    model.load_state_dict(state_dict)
+    model.eval()
+    
+    logger.info("Model loaded successfully.")
+    return model
+
+
+def initialize_services():
+    """Initialize external service components."""
+    try:
+        naming_service = LinguisticsService()
+    except Exception as e:
+        logger.warning(f"Linguistics service unavailable: {e}")
+        naming_service = None
+    
+    return naming_service
+
+
+def calculate_molecule_score(
+    mol: Chem.Mol,
+    properties: Dict,
+    target_fp: Optional[DataStructs.ExplicitBitVect],
+    target_category: str
+) -> Tuple[float, Optional[float], Optional[float]]:
+    """
+    Evaluate molecule quality using multi-objective scoring.
+    
+    Args:
+        mol: RDKit molecule object
+        properties: Dictionary of computed molecular properties
+        target_fp: Target fingerprint for similarity calculation
+        target_category: Therapeutic category for docking
+        
+    Returns:
+        Tuple of (score, affinity, similarity)
+    """
+    if target_fp is None:
+        return properties['qed'], None, None
+    
+    fingerprint = AllChem.GetMorganFingerprintAsBitVect(mol, 2, nBits=1024)
+    similarity = DataStructs.TanimotoSimilarity(target_fp, fingerprint)
+    
+    affinity = 0.0
+    if properties['qed'] > 0.2:
+        affinity = BiologyService.dock_simulation(mol, target_category)
+    
+    score = (similarity * 50) + (properties['qed'] * 30) + abs(affinity) * 5
+    
+    if "⚠️" in properties['toxicity']:
+        score -= 50
+    
+    return score, affinity, similarity
+
+
+def generate_molecules(
+    model: MoleculeTransformer,
+    vocab: Vocabulary,
+    target_info: Optional[Dict],
+    target_category: str
+) -> Optional[Tuple]:
+    """
+    Core generation pipeline with adaptive sampling strategy.
+    
+    Args:
+        model: Transformer model for generation
+        vocab: Vocabulary for decoding
+        target_info: Target specification for guided generation
+        target_category: Therapeutic category
+        
+    Returns:
+        Best candidate as tuple (mol, smiles, properties, affinity, similarity)
+    """
     is_targeted = target_info is not None
     batch_size = 50 if is_targeted else 10
-    attempts = 5 if is_targeted else 10
+    max_attempts = 5 if is_targeted else 10
     
     target_fp = None
     if is_targeted:
-        ref_mol = Chem.MolFromSmiles(target_info['ref'])
-        target_fp = AllChem.GetMorganFingerprintAsBitVect(ref_mol, 2, nBits=1024)
-
-    # --- GENERATION LOOP ---
-    for _ in range(attempts):
+        reference_mol = Chem.MolFromSmiles(target_info['ref'])
+        target_fp = AllChem.GetMorganFingerprintAsBitVect(reference_mol, 2, nBits=1024)
+    
+    best_candidate = None
+    best_score = -1000
+    
+    for attempt in range(max_attempts):
         with torch.no_grad():
-            indices = model.sample(batch_size, Config.DEVICE, vocab, max_len=200, temp=0.8)
-        cpu_indices = indices.cpu().numpy()
+            indices = model.sample(
+                batch_size, 
+                Config.DEVICE, 
+                vocab, 
+                max_len=200, 
+                temp=1.0
+            )
         
-        for i in range(batch_size):
+        sequences = indices.cpu().numpy()
+        
+        for seq in sequences:
             try:
-                # Decode & Validate
-                smi = sf.decoder(vocab.decode(cpu_indices[i]))
-                if not smi: 
+                smiles = sf.decoder(vocab.decode(seq))
+                if not smiles:
                     continue
-                mol = Chem.MolFromSmiles(smi)
-                if not mol: 
+                
+                mol = Chem.MolFromSmiles(smiles)
+                if not mol:
                     continue
+                
                 Chem.SanitizeMol(mol)
                 
-                if Descriptors.MolWt(mol) < 100: 
+                if Descriptors.MolWt(mol) < 100:
                     continue
-
-                # --- SCORING ---
-                props = ChemistryService.analyze_properties(mol)
+                
+                properties = ChemistryService.analyze_properties(mol)
                 
                 if not is_targeted:
-                    # Random Mode
-                    if props['qed'] > 0.5:
-                        candidate = (mol, smi, props, None, None)
-                        break
+                    if properties['qed'] > 0.1:
+                        return (mol, smiles, properties, None, None)
                 else:
-                    # Targeted Mode
-                    fp = AllChem.GetMorganFingerprintAsBitVect(mol, 2, nBits=1024)
-                    sim = DataStructs.TanimotoSimilarity(target_fp, fp)
-                    
-                    affinity = 0.0
-                    if props['qed'] > 0.5:
-                        affinity = BiologyService.dock_simulation(mol, target_cat)
-                        
-                    score = (sim * 50) + (props['qed'] * 30) + abs(affinity) * 5
-                    
-                    # Penalties
-                    if "⚠️" in props['toxicity']: 
-                        score -= 50
+                    score, affinity, similarity = calculate_molecule_score(
+                        mol, properties, target_fp, target_category
+                    )
                     
                     if score > best_score:
                         best_score = score
-                        candidate = (mol, smi, props, affinity, sim)
-            
-            except Exception:
-                continue # Skip invalid molecules
+                        best_candidate = (mol, smiles, properties, affinity, similarity)
                         
-        if candidate and not is_targeted: 
-            break 
+            except Exception:
+                continue
+        
+        if best_candidate and not is_targeted:
+            break
     
-    # --- REPORT GENERATION ---
-    if candidate:
-        mol, smi, props, affinity, sim = candidate
-        user_session_cache[chat_id] = smi 
-        
-        # 1. Visualization
-        pil_image = VisualizationService.draw_cyberpunk(mol)
-        bio_io = io.BytesIO()
-        pil_image.save(bio_io, format='PNG')
-        bio_io.seek(0)
-        
-        # 2. Retrosynthesis
-        precursors = RetrosynthesisService.get_building_blocks(mol)
-        recipe = RetrosynthesisService.describe_synthesis(precursors)
-        
-        # 3. Novelty & Naming
-        is_new, name, link = ChemistryService.check_novelty(smi)
-        
+    return best_candidate
+
+
+def format_report(
+    smiles: str,
+    properties: Dict,
+    target_info: Optional[Dict],
+    affinity: Optional[float],
+    similarity: Optional[float],
+    recipe: str,
+    naming_service: Optional[LinguisticsService]
+) -> str:
+    """Generate formatted molecule report."""
+    is_novel, name, link = ChemistryService.check_novelty(smiles)
+    
+    iupac_name = "Synthetic Compound"
+    if naming_service:
         try:
-            iupac_name = naming.get_iupac_name(smi) if naming else "Synthetic Compound"
-        except Exception: 
-            iupac_name = "Synthetic Compound"
-
-        status_header = "✨ **NOVEL ENTITY**" if is_new else f"🌍 **Known:** [{name}]({link})"
-        name_block = f"🏷 **Name (AI):** _{iupac_name}_" if is_new else f"🏷 **Name:** _{name}_"
-        
-        # 4. Construct Message
-        dock_block = ""
-        if is_targeted:
-            verdict = BiologyService.interpret_affinity(affinity)
-            dock_block = (f"\n🧬 **BIO-PHYSICS:**\n"
-                          f"🔗 Affinity: `{affinity} kcal/mol`\n"
-                          f"🎯 Similarity: `{sim*100:.1f}%`\n"
-                          f"🏷 Verdict: {verdict}\n")
-            
-        context_block = f"🎯 **Objective:** {target_info['name']}\n" if is_targeted else "👽 **Mode:** Random Exploration\n"
-        
-        caption = (
-            f"{status_header}\n"
-            f"{context_block}"
-            f"{name_block}\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"🧬 **SMILES:** `{smi}`\n"
-            f"{dock_block}\n"
-            f"🏗 **SYNTHESIS ROUTE:**\n{recipe}\n\n"
-            f"📊 **MOLECULAR PROFILE:**\n"
-            f"💊 QED: `{props['qed']}` | ⚖️ MW: `{props['mw']}`\n"
-            f"🧠 BBB: {props['brain']} | ☠️ Tox: {props['toxicity']}"
-        )
-        
-        markup = types.InlineKeyboardMarkup(row_width=2)
-        markup.add(
-            types.InlineKeyboardButton("🧱 Precursors", callback_data="get_recipe"),
-            types.InlineKeyboardButton("📦 3D Model", callback_data="get_3d"),
-            types.InlineKeyboardButton("🔄 Rerun", callback_data="refresh_target" if is_targeted else "refresh_random")
-        )
-        
-        bot.send_photo(chat_id, bio_io, caption=caption, parse_mode='Markdown', reply_markup=markup)
-    else:
-        bot.send_message(chat_id, "⚠️ Search yielded no viable candidates. Try again.")
-
-# --- TELEGRAM HANDLERS ---
-
-@bot.message_handler(commands=['start'])
-def send_welcome(message):
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add(types.KeyboardButton("🧬 Random Synthesis"), types.KeyboardButton("🎯 Targeted Design"))
-    
-    welcome_text = (
-        "🌌 **MUG System v7.1 (Enterprise)**\n"
-        "AI-Driven De Novo Drug Design Platform.\n\n"
-        "Select operating mode:"
-    )
-    bot.send_message(message.chat.id, welcome_text, parse_mode='Markdown', reply_markup=markup)
-
-@bot.message_handler(func=lambda m: m.text == "🧬 Random Synthesis")
-def handler_random(message):
-    run_generation_pipeline(message.chat.id)
-
-@bot.message_handler(func=lambda m: m.text == "🎯 Targeted Design")
-def handler_targeted_menu(message):
-    markup = types.InlineKeyboardMarkup(row_width=2)
-    for k, v in Config.DISEASE_DB.items():
-        markup.add(types.InlineKeyboardButton(v['title'], callback_data=f"cat_{k}"))
-    bot.send_message(message.chat.id, "🔬 **Select Therapeutic Area:**", parse_mode='Markdown', reply_markup=markup)
-
-@bot.callback_query_handler(func=lambda call: call.data.startswith("cat_"))
-def handler_disease_submenu(call):
-    cat = call.data.split("_")[1]
-    markup = types.InlineKeyboardMarkup(row_width=2)
-    for k, v in Config.DISEASE_DB[cat]['targets'].items():
-        markup.add(types.InlineKeyboardButton(v['name'], callback_data=f"tgt_{cat}_{k}"))
-    markup.add(types.InlineKeyboardButton("🔙 Back", callback_data="back_home"))
-    
-    bot.edit_message_text(
-        f"📂 **{Config.DISEASE_DB[cat]['title']}**\nSelect specific pathology:",
-        call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode='Markdown'
-    )
-
-@bot.callback_query_handler(func=lambda call: call.data.startswith("tgt_"))
-def handler_run_hunter(call):
-    chat_id = call.message.chat.id
-    _, cat, dis = call.data.split("_")
-    target = Config.DISEASE_DB[cat]['targets'][dis]
-    
-    bot.edit_message_text(
-        f"📡 **Target Locked:** {target['name']}\n⚙️ Initializing Deep Generative Search...",
-        chat_id, call.message.message_id, parse_mode='Markdown'
-    )
-    run_generation_pipeline(chat_id, target_info=target, target_cat=cat)
-
-@bot.callback_query_handler(func=lambda call: True)
-def handler_actions(call):
-    chat_id = call.message.chat.id
-    data = call.data
-    
-    if data == "back_home":
-        handler_targeted_menu(call.message)
-        
-    elif "refresh" in data:
-        try: 
-            bot.edit_message_reply_markup(chat_id, call.message.message_id, reply_markup=None)
-        except Exception: 
+            iupac_name = naming_service.get_iupac_name(smiles)
+        except Exception:
             pass
-        
-        if data == "refresh_random":
-            run_generation_pipeline(chat_id)
-        elif data == "refresh_target":
-            bot.send_message(chat_id, "🔄 Please re-select the target from the menu above.")
+    
+    if is_novel:
+        header = "✨ **NOVEL ENTITY**"
+        name_line = f"🏷 **Name (AI):** _{iupac_name}_"
+    else:
+        header = f"🌍 **Known:** [{name}]({link})"
+        name_line = f"🏷 **Name:** _{name}_"
+    
+    mode_line = (
+        f"🎯 **Objective:** {target_info['name']}\n" 
+        if target_info 
+        else "👽 **Mode:** Random Exploration\n"
+    )
+    
+    bio_section = ""
+    if target_info and affinity is not None:
+        verdict = BiologyService.interpret_affinity(affinity)
+        bio_section = (
+            f"\n🧬 **BIO-PHYSICS:**\n"
+            f"🔗 Affinity: `{affinity} kcal/mol`\n"
+            f"🎯 Similarity: `{similarity*100:.1f}%`\n"
+            f"🏷 Verdict: {verdict}\n"
+        )
+    
+    return (
+        f"{header}\n"
+        f"{mode_line}"
+        f"{name_line}\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"🧬 **SMILES:** `{smiles}`\n"
+        f"{bio_section}\n"
+        f"🏗 **SYNTHESIS ROUTE:**\n{recipe}\n\n"
+        f"📊 **MOLECULAR PROFILE:**\n"
+        f"💊 QED: `{properties['qed']}` | ⚖️ MW: `{properties['mw']}`\n"
+        f"🧠 BBB: {properties['brain']} | ☠️ Tox: {properties['toxicity']}"
+    )
 
-    elif data == "get_3d":
-        smi = user_session_cache.get(chat_id)
-        if smi:
-            bot.send_chat_action(chat_id, 'upload_document')
-            mol = Chem.MolFromSmiles(smi)
+
+def execute_generation_pipeline(
+    chat_id: int,
+    bot: telebot.TeleBot,
+    model: MoleculeTransformer,
+    vocab: Vocabulary,
+    naming_service: Optional[LinguisticsService],
+    session_cache: Dict[int, str],
+    target_info: Optional[Dict] = None,
+    target_category: str = ""
+) -> None:
+    """Execute complete molecule generation and reporting pipeline."""
+    bot.send_chat_action(chat_id, 'upload_photo')
+    
+    candidate = generate_molecules(model, vocab, target_info, target_category)
+    
+    if not candidate:
+        bot.send_message(chat_id, "⚠️ No viable candidates found. Please try again.")
+        return
+    
+    mol, smiles, properties, affinity, similarity = candidate
+    session_cache[chat_id] = smiles
+    
+    image = VisualizationService.draw_cyberpunk(mol)
+    image_buffer = io.BytesIO()
+    image.save(image_buffer, format='PNG')
+    image_buffer.seek(0)
+    
+    precursors = RetrosynthesisService.get_building_blocks(mol)
+    synthesis_recipe = RetrosynthesisService.describe_synthesis(precursors)
+    
+    caption = format_report(
+        smiles, properties, target_info, affinity, 
+        similarity, synthesis_recipe, naming_service
+    )
+    
+    keyboard = types.InlineKeyboardMarkup(row_width=2)
+    keyboard.add(
+        types.InlineKeyboardButton("🧱 Precursors", callback_data="get_recipe"),
+        types.InlineKeyboardButton("📦 3D Model", callback_data="get_3d"),
+        types.InlineKeyboardButton(
+            "🔄 Rerun", 
+            callback_data="refresh_target" if target_info else "refresh_random"
+        )
+    )
+    
+    bot.send_photo(
+        chat_id, 
+        image_buffer, 
+        caption=caption, 
+        parse_mode='Markdown', 
+        reply_markup=keyboard
+    )
+
+
+class MolecularBot:
+    """Main bot controller class."""
+    
+    def __init__(self):
+        self.bot = initialize_bot()
+        self.vocab = load_vocabulary()
+        self.model = load_model(self.vocab)
+        self.naming_service = initialize_services()
+        self.session_cache: Dict[int, str] = {}
+        
+        self._register_handlers()
+    
+    def _register_handlers(self):
+        """Register all bot command and callback handlers."""
+        
+        @self.bot.message_handler(commands=['start'])
+        def handle_start(message):
+            keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+            keyboard.add(
+                types.KeyboardButton("🧬 Random Synthesis"),
+                types.KeyboardButton("🎯 Targeted Design")
+            )
+            
+            welcome_text = (
+                "🌌 **MUG System v7.1**\n"
+                "AI-Driven De Novo Drug Design Platform\n\n"
+                "Select operating mode:"
+            )
+            self.bot.send_message(
+                message.chat.id, 
+                welcome_text, 
+                parse_mode='Markdown', 
+                reply_markup=keyboard
+            )
+        
+        @self.bot.message_handler(func=lambda m: m.text == "🧬 Random Synthesis")
+        def handle_random_synthesis(message):
+            execute_generation_pipeline(
+                message.chat.id, 
+                self.bot, 
+                self.model, 
+                self.vocab, 
+                self.naming_service, 
+                self.session_cache
+            )
+        
+        @self.bot.message_handler(func=lambda m: m.text == "🎯 Targeted Design")
+        def handle_targeted_menu(message):
+            keyboard = types.InlineKeyboardMarkup(row_width=2)
+            for key, value in Config.DISEASE_DB.items():
+                keyboard.add(
+                    types.InlineKeyboardButton(
+                        value['title'], 
+                        callback_data=f"cat_{key}"
+                    )
+                )
+            self.bot.send_message(
+                message.chat.id, 
+                "🔬 **Select Therapeutic Area:**", 
+                parse_mode='Markdown', 
+                reply_markup=keyboard
+            )
+        
+        @self.bot.callback_query_handler(func=lambda call: call.data.startswith("cat_"))
+        def handle_category_selection(call):
+            category = call.data.split("_")[1]
+            keyboard = types.InlineKeyboardMarkup(row_width=2)
+            
+            for key, value in Config.DISEASE_DB[category]['targets'].items():
+                keyboard.add(
+                    types.InlineKeyboardButton(
+                        value['name'], 
+                        callback_data=f"tgt_{category}_{key}"
+                    )
+                )
+            keyboard.add(
+                types.InlineKeyboardButton("🔙 Back", callback_data="back_home")
+            )
+            
+            self.bot.edit_message_text(
+                f"📂 **{Config.DISEASE_DB[category]['title']}**\n"
+                f"Select specific pathology:",
+                call.message.chat.id,
+                call.message.message_id,
+                reply_markup=keyboard,
+                parse_mode='Markdown'
+            )
+        
+        @self.bot.callback_query_handler(func=lambda call: call.data.startswith("tgt_"))
+        def handle_target_selection(call):
+            _, category, disease = call.data.split("_")
+            target = Config.DISEASE_DB[category]['targets'][disease]
+            
+            self.bot.edit_message_text(
+                f"📡 **Target Locked:** {target['name']}\n"
+                f"⚙️ Initializing generation pipeline...",
+                call.message.chat.id,
+                call.message.message_id,
+                parse_mode='Markdown'
+            )
+            
+            execute_generation_pipeline(
+                call.message.chat.id,
+                self.bot,
+                self.model,
+                self.vocab,
+                self.naming_service,
+                self.session_cache,
+                target_info=target,
+                target_category=category
+            )
+        
+        @self.bot.callback_query_handler(func=lambda call: call.data == "back_home")
+        def handle_back(call):
+            handle_targeted_menu(call.message)
+        
+        @self.bot.callback_query_handler(func=lambda call: call.data.startswith("refresh"))
+        def handle_refresh(call):
+            try:
+                self.bot.edit_message_reply_markup(
+                    call.message.chat.id,
+                    call.message.message_id,
+                    reply_markup=None
+                )
+            except Exception:
+                pass
+            
+            if call.data == "refresh_random":
+                execute_generation_pipeline(
+                    call.message.chat.id,
+                    self.bot,
+                    self.model,
+                    self.vocab,
+                    self.naming_service,
+                    self.session_cache
+                )
+            else:
+                self.bot.send_message(
+                    call.message.chat.id,
+                    "🔄 Please re-select target from the menu."
+                )
+        
+        @self.bot.callback_query_handler(func=lambda call: call.data == "get_3d")
+        def handle_3d_export(call):
+            smiles = self.session_cache.get(call.message.chat.id)
+            if not smiles:
+                return
+            
+            self.bot.send_chat_action(call.message.chat.id, 'upload_document')
+            
+            mol = Chem.MolFromSmiles(smiles)
             mol_3d = Chem.AddHs(mol)
             AllChem.EmbedMolecule(mol_3d, AllChem.ETKDGv3())
             AllChem.MMFFOptimizeMolecule(mol_3d)
-            sio = io.StringIO()
-            writer = Chem.SDWriter(sio)
+            
+            string_buffer = io.StringIO()
+            writer = Chem.SDWriter(string_buffer)
             writer.write(mol_3d)
             writer.close()
-            bio = io.BytesIO(sio.getvalue().encode('utf-8'))
-            bio.name = 'structure_3d.sdf'
-            bot.send_document(chat_id, bio, caption="🧬 **3D Structural Data (.sdf)**")
             
-    elif data == "get_recipe":
-        smi = user_session_cache.get(chat_id)
-        if smi:
-            bot.send_chat_action(chat_id, 'upload_photo')
-            mol = Chem.MolFromSmiles(smi)
-            blocks = RetrosynthesisService.get_building_blocks(mol)
-            if blocks:
-                mols = [Chem.MolFromSmiles(b) for b in blocks]
-                img = Draw.MolsToGridImage(mols, molsPerRow=len(blocks), subImgSize=(300,300))
-                bio = io.BytesIO()
-                img.save(bio, format='PNG')
-                bio.seek(0)
-                bot.send_photo(chat_id, bio, caption="🧩 **Synthetic Precursors**")
-            else:
-                bot.answer_callback_query(call.id, "No specific precursors identified.")
+            file_buffer = io.BytesIO(string_buffer.getvalue().encode('utf-8'))
+            file_buffer.name = 'structure_3d.sdf'
+            
+            self.bot.send_document(
+                call.message.chat.id,
+                file_buffer,
+                caption="🧬 **3D Structural Data (.sdf)**"
+            )
+        
+        @self.bot.callback_query_handler(func=lambda call: call.data == "get_recipe")
+        def handle_precursor_view(call):
+            smiles = self.session_cache.get(call.message.chat.id)
+            if not smiles:
+                return
+            
+            self.bot.send_chat_action(call.message.chat.id, 'upload_photo')
+            
+            mol = Chem.MolFromSmiles(smiles)
+            precursors = RetrosynthesisService.get_building_blocks(mol)
+            
+            if not precursors:
+                self.bot.answer_callback_query(
+                    call.id, 
+                    "No specific precursors identified."
+                )
+                return
+            
+            precursor_mols = [Chem.MolFromSmiles(p) for p in precursors]
+            grid_image = Draw.MolsToGridImage(
+                precursor_mols,
+                molsPerRow=len(precursors),
+                subImgSize=(300, 300)
+            )
+            
+            image_buffer = io.BytesIO()
+            grid_image.save(image_buffer, format='PNG')
+            image_buffer.seek(0)
+            
+            self.bot.send_photo(
+                call.message.chat.id,
+                image_buffer,
+                caption="🧩 **Synthetic Precursors**"
+            )
+    
+    def run(self):
+        """Start bot polling loop."""
+        logger.info("System ready. Starting bot...")
+        self.bot.polling(none_stop=True)
+
+
+def main():
+    """Application entry point."""
+    try:
+        bot_controller = MolecularBot()
+        bot_controller.run()
+    except Exception as e:
+        logger.critical(f"Fatal error: {e}")
+        raise
+
 
 if __name__ == "__main__":
-    logger.info("🚀 System Ready. Polling...")
-    bot.polling(none_stop=True)
+    main()
