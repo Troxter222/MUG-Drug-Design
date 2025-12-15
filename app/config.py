@@ -33,7 +33,7 @@ class Config:
     # ========================
     # Model Paths
     # ========================
-    MODEL_FILENAME: str = "checkpoints_rl_transformer_v2/mug_trans_v2_ep11.pth"
+    MODEL_FILENAME: str = "checkpoints_rl_transformer/mug_transformer_rl_best.pth"
     CHECKPOINT_PATH: Path = BASE_DIR / MODEL_FILENAME
     
     VOCAB_FILENAME: str = "dataset/processed/vocab_transformer.json"

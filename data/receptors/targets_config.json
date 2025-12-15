@@ -1,0 +1,54 @@
+{
+  "alzheimer": {
+    "pdb_file": "D:\\dovnald\\Programming\\Python\\AI\\PyTorchLearn\\Project\\Molecular Universe Generator\\data\\receptors\\alzheimer.pdb",
+    "center": [
+      2.3,
+      64.6,
+      67.4
+    ],
+    "size": [
+      22,
+      22,
+      22
+    ]
+  },
+  "lung": {
+    "pdb_file": "D:\\dovnald\\Programming\\Python\\AI\\PyTorchLearn\\Project\\Molecular Universe Generator\\data\\receptors\\lung.pdb",
+    "center": [
+      22.0,
+      0.0,
+      5.0
+    ],
+    "size": [
+      20,
+      20,
+      20
+    ]
+  },
+  "covid": {
+    "pdb_file": "D:\\dovnald\\Programming\\Python\\AI\\PyTorchLearn\\Project\\Molecular Universe Generator\\data\\receptors\\covid.pdb",
+    "center": [
+      -10.7,
+      12.5,
+      68.4
+    ],
+    "size": [
+      24,
+      24,
+      24
+    ]
+  },
+  "hiv": {
+    "pdb_file": "D:\\dovnald\\Programming\\Python\\AI\\PyTorchLearn\\Project\\Molecular Universe Generator\\data\\receptors\\hiv.pdb",
+    "center": [
+      9.0,
+      9.0,
+      9.0
+    ],
+    "size": [
+      22,
+      22,
+      22
+    ]
+  }
+}
