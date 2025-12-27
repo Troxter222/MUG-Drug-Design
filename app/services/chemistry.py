@@ -5,162 +5,175 @@ Date: 2025
 License: MIT
 """
 
-import random
+import math
 from typing import Dict, List, Tuple, Optional, Any
 from rdkit import Chem
-from rdkit.Chem import Descriptors, Crippen, Lipinski, BRICS, GraphDescriptors
+from rdkit.Chem import Descriptors, Crippen
+from rdkit.Chem.MolStandardize import rdMolStandardize
 import pubchempy as pcp
 
 class ChemistryService:
-    """
-    Core service for chemical property calculation, structural analysis, 
-    and database validation.
-    """
+    
+    # --- SMARTS для pKa эвристики ---
+    ACIDIC_GRP = Chem.MolFromSmarts("[CX3](=O)[OH]")
+    BASIC_AMINE = Chem.MolFromSmarts("[NX3;H2,H1;!$(NC=O)]") 
+    BASIC_AROM = Chem.MolFromSmarts("[n]")
 
-    # --- Constants for Delaney's ESOL Equation (Solubility) ---
-    ESOL_INTERCEPT = 0.16
-    ESOL_COEF_LOGP = -0.63
-    ESOL_COEF_MW = -0.0062
-    ESOL_COEF_ROTORS = 0.066
-    ESOL_COEF_AP = -0.74
+    @staticmethod
+    def normalize_structure(mol: Chem.Mol) -> Chem.Mol:
+        try:
+            clean = rdMolStandardize.Cleanup(mol)
+            enumerator = rdMolStandardize.TautomerEnumerator()
+            canon = enumerator.Canonicalize(clean)
+            return rdMolStandardize.ChargeParent(canon)
+        except Exception: 
+            return mol
+
+    @staticmethod
+    def estimate_pka_logd(mol: Chem.Mol, logp: float) -> Tuple[float, str, float]:
+        """
+        Approximates LogD at pH 7.4 using Henderson-Hasselbalch equation
+        based on identified functional groups.
+        
+        Returns: (cLogD_7.4, pKa_description, most_basic_pka)
+        """
+        # Эмпирические значения pKa
+        pka_acid = 4.5  # Типичная карбоновая кислота
+        pka_base = 9.5  # Типичный алифатический амин
+        
+        has_acid = mol.HasSubstructMatch(ChemistryService.ACIDIC_GRP)
+        has_base = mol.HasSubstructMatch(ChemistryService.BASIC_AMINE)
+        
+        log_d = logp
+        pka_desc = "Neutral"
+        most_basic = 0.0
+
+        # Корректировка LogD (учитываем ионизацию)
+        # Если есть кислота: при pH 7.4 она заряжена (-) -> LogD падает
+        if has_acid:
+            # Fraction ionized for acid: 1 / (1 + 10^(pKa - pH))
+            # LogD = LogP - log10(1 + 10^(pH - pKa))
+            correction = math.log10(1 + 10**(7.4 - pka_acid))
+            log_d -= correction
+            pka_desc = f"Acidic (pKa~{pka_acid})"
+
+        # Если есть база: при pH 7.4 она заряжена (+) -> LogD падает
+        if has_base:
+            # Fraction ionized for base: 1 / (1 + 10^(pH - pKa))
+            correction = math.log10(1 + 10**(pka_base - 7.4))
+            log_d -= correction
+            if has_acid:
+                pka_desc = "Zwitterionic (Acid+Base)"
+            else:
+                pka_desc = f"Basic (pKa~{pka_base})"
+            most_basic = pka_base
+
+        return round(log_d, 2), pka_desc, most_basic
+
+    @staticmethod
+    def validate_cns_rules(mol: Chem.Mol, target_cat: str) -> Tuple[float, List[str]]:
+        penalty = 0.0
+        warnings = []
+        if "neuro" not in target_cat: 
+            return 0.0, []
+
+        # Zwitterion check
+        if mol.HasSubstructMatch(ChemistryService.ACIDIC_GRP) and \
+           mol.HasSubstructMatch(ChemistryService.BASIC_AMINE):
+            penalty += 40.0
+            warnings.append("Zwitterion (Likely BBB Impermeable)")
+
+        return penalty, warnings
 
     @staticmethod
     def check_novelty(smiles: str) -> Tuple[bool, Optional[str], Optional[str]]:
-        """
-        Validates the molecule against the PubChem database to determine novelty.
-        
-        Returns:
-            Tuple containing: (is_novel, compound_name, pubchem_link)
-        """
         try:
             compounds = pcp.get_compounds(smiles, namespace='smiles')
             if compounds and compounds[0].cid:
-                compound = compounds[0]
-                # Try to get a synonym, fallback to CID if nameless
-                name = compound.synonyms[0] if compound.synonyms else f"Compound {compound.cid}"
-                link = f"https://pubchem.ncbi.nlm.nih.gov/compound/{compound.cid}"
+                c = compounds[0]
+                name = c.synonyms[0] if c.synonyms else f"Compound {c.cid}"
+                link = f"https://pubchem.ncbi.nlm.nih.gov/compound/{c.cid}"
                 return False, name, link
-            
-            # No CID found implies novelty
             return True, None, None
         except Exception:
-            # Fallback to assuming novelty in case of API timeout
             return True, None, None
 
     @staticmethod
     def analyze_properties(mol: Chem.Mol) -> Dict[str, Any]:
         """
-        Computes physicochemical descriptors and ADMET (Absorption, Distribution, 
-        Metabolism, Excretion, Toxicity) risks.
+        Enhanced analysis with Consistency Rules.
         """
-        # 1. Physicochemical Descriptors
+        # 1. Descriptors
         logp = Crippen.MolLogP(mol)
         mw = Descriptors.MolWt(mol)
         tpsa = Descriptors.TPSA(mol)
-        rotors = Lipinski.NumRotatableBonds(mol)
+        qed = Descriptors.qed(mol)
         
-        # 2. ESOL Solubility Prediction (Delaney, 2004)
-        # Calculate Aromatic Proportion (AP)
-        aromatic_atom_count = sum([a.GetIsAromatic() for a in mol.GetAtoms()])
-        heavy_atom_count = mol.GetNumHeavyAtoms()
-        aromatic_proportion = aromatic_atom_count / heavy_atom_count if heavy_atom_count > 0 else 0
-        
-        esol_log_s = (ChemistryService.ESOL_INTERCEPT +
-                      (ChemistryService.ESOL_COEF_LOGP * logp) +
-                      (ChemistryService.ESOL_COEF_MW * mw) +
-                      (ChemistryService.ESOL_COEF_ROTORS * rotors) +
-                      (ChemistryService.ESOL_COEF_AP * aromatic_proportion))
+        # 2. Advanced: cLogD 7.4 Calculation
+        clogd, pka_type, basic_pka = ChemistryService.estimate_pka_logd(mol, logp)
 
-        # 3. Structural Alerts (Toxicity Filters)
+        # 3. Alerts
         alerts = []
-        # Nitro groups often indicate mutagenicity
-        if mol.HasSubstructMatch(Chem.MolFromSmarts("[N+](=O)[O-]")):
-            alerts.append("Nitro group")
-        # High halogen content can indicate hepatotoxicity
-        halogens = len([a for a in mol.GetAtoms() if a.GetSymbol() in ['F', 'Cl', 'Br', 'I']])
-        if halogens > 3:
-            alerts.append("High Halogen content")
+        if mol.HasSubstructMatch(Chem.MolFromSmarts("[N+](=O)[O-]")): 
+            alerts.append("Nitro")
+        if mol.HasSubstructMatch(Chem.MolFromSmarts("[I,Br,Cl]")): 
+            alerts.append("Halogen")
         
-        # 4. Blood-Brain Barrier (BBB) Permeability Heuristic
-        # TPSA < 90 and MW < 450 is a common rule of thumb for CNS drugs
-        brain_penetration = "🧠 Yes" if (tpsa < 90 and mw < 450) else "🛡 No"
+        # SOFTENED TERMINOLOGY
+        risk_profile = "No obvious alerts (Bertz)" if not alerts else f"Alerts: {','.join(alerts)}"
+
+        # 4. CNS CONSISTENCY LOGIC (Gating)
+        # Правило: Если LogD < 0 (слишком полярно/ионизировано), пассивный транспорт невозможен
         
-        # 5. Synthetic Accessibility (SA) Proxy
-        # Normalize Bertz Complexity to a 1-10 scale
-        complexity = GraphDescriptors.BertzCT(mol)
-        sa_score = max(1.0, min(10.0, (complexity - 200) / 100))
-        
-        sa_text = "Easy"
-        if sa_score >= 4: 
-            sa_text = "Medium"
-        if sa_score >= 7: 
-            sa_text = "Difficult"
+        cns_score = 0
+        cns_reason = []
+
+        # (A) LogD Check (Главный Гейткипер)
+        if clogd < 0:
+            cns_reason.append("Too Hydrophilic/Ionized")
+            cns_score -= 5 # Force Low
+        elif clogd > 5:
+            cns_reason.append("Too Lipophilic")
+            cns_score -= 2
+        else:
+            cns_score += 2 # Good range (0-5)
+
+        # (B) MW Check
+        if mw < 450: 
+            cns_score += 1
+        else: 
+            cns_reason.append("High MW")
+
+        # (C) TPSA Check
+        if tpsa < 90:
+            cns_score += 1
+        elif tpsa > 120: 
+            cns_score -= 2
+            cns_reason.append("High TPSA")
+
+        # Final Verdict
+        if cns_score >= 4:
+            cns_prob = "High (Ideal)"
+        elif cns_score >= 1:
+            cns_prob = "Medium"
+        else:
+            reason_str = f" ({', '.join(cns_reason)})" if cns_reason else ""
+            cns_prob = f"Low{reason_str}"
+
+        # 5. Ionization Note (State)
+        state_desc = pka_type
+        if "Basic" in pka_type and clogd < 0:
+             state_desc += " (Protonated @ pH 7.4)"
 
         return {
+            "mw": round(mw, 1),
             "logp": round(logp, 2),
-            "mw": round(mw, 2),
-            "qed": round(Descriptors.qed(mol), 2),
-            "esol": round(esol_log_s, 2),
-            "solubility": "High" if esol_log_s > -2 else "Medium" if esol_log_s > -4 else "Low",
-            "brain": brain_penetration,
-            "toxicity": "✅ Safe" if not alerts else f"⚠️ Alerts: {', '.join(alerts)}",
-            "sa_score": round(sa_score, 1),
-            "sa_text": sa_text
+            "clogd": clogd,
+            "pka_type": state_desc,
+            "tpsa": round(tpsa, 1),
+            "qed": round(qed, 2),
+            "cns_prob": cns_prob,
+            "risk_profile": risk_profile,
+            "alerts_list": alerts,
+            "complexity_ct": round(Descriptors.BertzCT(mol), 1)
         }
-
-    @staticmethod
-    def retrosynthesis(mol: Chem.Mol) -> List[str]:
-        """
-        Performs retrosynthetic fragmentation using the BRICS algorithm.
-        Returns a list of top precursor SMILES strings.
-        """
-        try:
-            # Break strategic bonds
-            fragmented_mol = BRICS.BreakBRICSBonds(mol)
-            fragments = Chem.MolToSmiles(fragmented_mol).split(".")
-            
-            clean_precursors = []
-            for frag in fragments:
-                frag_mol = Chem.MolFromSmiles(frag)
-                if frag_mol:
-                    # Clean up dummy isotopes (e.g., [14*]) left by BRICS
-                    for atom in frag_mol.GetAtoms():
-                        if atom.GetAtomicNum() == 0: 
-                            atom.SetAtomicNum(1) # Convert dummy to Hydrogen
-                    
-                    # Deduplicate via canonical SMILES
-                    clean_precursors.append(Chem.MolToSmiles(frag_mol))
-            
-            # Return unique, largest fragments first
-            unique_frags = sorted(list(set(clean_precursors)), key=len, reverse=True)
-            return unique_frags[:4]
-            
-        except Exception:
-            return []
-
-    @staticmethod
-    def dock_simulation(mol: Chem.Mol, target_type: str) -> float:
-        """
-        Approximates binding affinity using a QSAR-based scoring function.
-        Acts as a computationally efficient proxy for full molecular docking.
-        """
-        mw = Descriptors.MolWt(mol)
-        logp = Crippen.MolLogP(mol)
-        h_bonds = Lipinski.NumHDonors(mol) + Lipinski.NumHAcceptors(mol)
-        rotatable_bonds = Lipinski.NumRotatableBonds(mol)
-        
-        # Base scoring function (empirical weights)
-        score = -5.0 - (mw / 100.0 * 0.8) - (h_bonds * 0.1)
-        
-        # Entropy penalty for flexibility
-        score += (rotatable_bonds * 0.1)
-        
-        # Target-specific penalties
-        if target_type == "neuro" and logp > 2.5:
-            score -= 1.0 # Penalize low lipophilicity for CNS targets
-            
-        # Add stochastic noise to simulate experimental variance
-        final_score = score + random.uniform(-0.5, 0.5)
-        
-        # Clamp to realistic biophysical range (kcal/mol)
-        return round(max(-12.0, min(-2.0, final_score)), 2)

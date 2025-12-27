@@ -10,36 +10,38 @@ for transformer-based molecular generation models.
 import json
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Set, Tuple
 
 import pandas as pd
 import selfies as sf
 from tqdm import tqdm
 
-
-# Configuration
+# --- КОНФИГУРАЦИЯ ---
 class PreprocessConfig:
     """Configuration for data preprocessing pipeline."""
     
-    INPUT_FILE = Path("dataset/raw/pretrain/global_chem_space.csv")
-    OUTPUT_DIR = Path("dataset/processed")
+    # ВХОДНОЙ ФАЙЛ (Тот, который создал build_dataset.py)
+    # Если у вас файл называется transformer_train_v2.csv, поменяйте название здесь!
+    INPUT_FILE = Path("dataset/processed/transformer_train_v2.csv")
+    
+    # ВЫХОДНАЯ ПАПКА (Куда сохранять готовое)
+    OUTPUT_DIR = Path("dataset/processed_v2")
+    
+    # Имена выходных файлов
     OUTPUT_FILE = OUTPUT_DIR / "transformer_train.csv"
     VOCAB_FILE = OUTPUT_DIR / "vocab_transformer.json"
     
-    # Processing parameters
-    MAX_SEQUENCE_LENGTH = 150
+    # Параметры обработки
+    MAX_SEQUENCE_LENGTH = 100  # Максимальная длина SELFIES токенов (оптимизация под GTX 1650)
     MIN_SEQUENCE_LENGTH = 5
-    SMILES_COLUMN = "smiles"
+    SMILES_COLUMN = "smiles"   # Название колонки в входном CSV
     
-    # Special tokens
+    # Специальные токены (Обязательно!)
     SPECIAL_TOKENS = ['<pad>', '<sos>', '<eos>']
     
-    # Logging
     LOG_LEVEL = logging.INFO
 
-
 def setup_logger() -> logging.Logger:
-    """Configure logging for preprocessing pipeline."""
     logging.basicConfig(
         level=PreprocessConfig.LOG_LEVEL,
         format='%(asctime)s | %(levelname)-8s | %(message)s',
@@ -47,119 +49,35 @@ def setup_logger() -> logging.Logger:
     )
     return logging.getLogger("MUG.Preprocessing")
 
-
 def validate_input_file(file_path: Path, logger: logging.Logger) -> bool:
-    """
-    Validate input CSV file exists and has required columns.
-    
-    Args:
-        file_path: Path to input CSV file
-        logger: Logger instance
-        
-    Returns:
-        True if validation passes, False otherwise
-    """
     if not file_path.exists():
         logger.error(f"Input file not found: {file_path}")
-        logger.info("Please place your molecular dataset at the specified location.")
         return False
-    
-    try:
-        df = pd.read_csv(file_path, nrows=5)
-        if PreprocessConfig.SMILES_COLUMN not in df.columns:
-            logger.error(
-                f"Required column '{PreprocessConfig.SMILES_COLUMN}' not found. "
-                f"Available columns: {df.columns.tolist()}"
-            )
-            return False
-    except Exception as e:
-        logger.error(f"Failed to read input file: {e}")
-        return False
-    
     return True
 
-
-def smiles_to_selfies(smiles: str) -> Optional[str]:
+def process_molecules(input_file: Path, logger: logging.Logger) -> Tuple[List[str], Dict[str, int]]:
     """
-    Convert SMILES string to SELFIES representation.
-    
-    Args:
-        smiles: SMILES molecular notation
-        
-    Returns:
-        SELFIES string or None if conversion fails
-    """
-    try:
-        selfies = sf.encoder(smiles)
-        return selfies if selfies else None
-    except Exception:
-        return None
-
-
-def validate_selfies(
-    selfies: str,
-    max_len: int,
-    min_len: int
-) -> bool:
-    """
-    Validate SELFIES string meets length requirements.
-    
-    Args:
-        selfies: SELFIES representation
-        max_len: Maximum allowed sequence length
-        min_len: Minimum allowed sequence length
-        
-    Returns:
-        True if valid, False otherwise
-    """
-    try:
-        tokens = list(sf.split_selfies(selfies))
-        length = len(tokens)
-        return min_len <= length <= max_len
-    except Exception:
-        return False
-
-
-def extract_vocabulary(selfies_list: List[str], logger: logging.Logger) -> Set[str]:
-    """
-    Extract unique tokens from SELFIES sequences.
-    
-    Args:
-        selfies_list: List of SELFIES strings
-        logger: Logger instance
-        
-    Returns:
-        Set of unique tokens
-    """
-    logger.info("Building vocabulary from molecular sequences...")
-    vocab_set = set()
-    
-    for selfies in tqdm(selfies_list, desc="Extracting tokens"):
-        try:
-            tokens = sf.split_selfies(selfies)
-            vocab_set.update(tokens)
-        except Exception:
-            continue
-    
-    return vocab_set
-
-
-def process_molecules(
-    input_file: Path,
-    logger: logging.Logger
-) -> Tuple[List[str], Dict[str, int]]:
-    """
-    Convert SMILES molecules to SELFIES format with validation.
-    
-    Args:
-        input_file: Path to input CSV file
-        logger: Logger instance
-        
-    Returns:
-        Tuple of (valid_selfies_list, conversion_statistics)
+    Основной цикл конвертации SMILES -> SELFIES.
     """
     logger.info(f"Loading molecular dataset: {input_file}")
-    df = pd.read_csv(input_file)
+    
+    try:
+        df = pd.read_csv(input_file)
+    except Exception as e:
+        logger.error(f"Failed to read CSV: {e}")
+        return [], {}
+
+    if PreprocessConfig.SMILES_COLUMN not in df.columns:
+        # Пытаемся найти колонку, если имя отличается
+        cols = df.columns.tolist()
+        if len(cols) > 0:
+            target_col = cols[0] # Берем первую
+        else:
+            logger.error("CSV file is empty or has no columns.")
+            return [], {}
+    else:
+        target_col = PreprocessConfig.SMILES_COLUMN
+
     total_molecules = len(df)
     logger.info(f"Total molecules loaded: {total_molecules:,}")
     
@@ -175,202 +93,132 @@ def process_molecules(
     
     logger.info("Converting SMILES to SELFIES format...")
     
-    for smiles in tqdm(df[PreprocessConfig.SMILES_COLUMN], desc="Processing"):
-        # Convert to SELFIES
-        selfies = smiles_to_selfies(smiles)
-        
-        if selfies is None:
+    # Используем tqdm для прогресс-бара
+    for smiles in tqdm(df[target_col].astype(str), desc="Processing"):
+        try:
+            # 1. Конвертация
+            selfies = sf.encoder(smiles)
+            if not selfies:
+                stats['failed_conversion'] += 1
+                continue
+            
+            # 2. Проверка длины (считаем количество токенов)
+            # Это важно, чтобы модель не падала по памяти
+            tokens = list(sf.split_selfies(selfies))
+            length = len(tokens)
+            
+            if length > PreprocessConfig.MAX_SEQUENCE_LENGTH:
+                stats['too_long'] += 1
+                continue
+            if length < PreprocessConfig.MIN_SEQUENCE_LENGTH:
+                stats['too_short'] += 1
+                continue
+                
+            valid_selfies.append(selfies)
+            stats['converted'] += 1
+            
+        except Exception:
             stats['failed_conversion'] += 1
             continue
-        
-        # Validate length
-        if not validate_selfies(
-            selfies,
-            PreprocessConfig.MAX_SEQUENCE_LENGTH,
-            PreprocessConfig.MIN_SEQUENCE_LENGTH
-        ):
-            try:
-                length = len(list(sf.split_selfies(selfies)))
-                if length > PreprocessConfig.MAX_SEQUENCE_LENGTH:
-                    stats['too_long'] += 1
-                elif length < PreprocessConfig.MIN_SEQUENCE_LENGTH:
-                    stats['too_short'] += 1
-                else:
-                    stats['invalid'] += 1
-            except Exception:
-                stats['invalid'] += 1
-            continue
-        
-        valid_selfies.append(selfies)
-        stats['converted'] += 1
     
     return valid_selfies, stats
 
+def extract_vocabulary(selfies_list: List[str], logger: logging.Logger) -> Set[str]:
+    """Собирает все уникальные токены из списка SELFIES."""
+    logger.info("Building vocabulary from molecular sequences...")
+    vocab_set = set()
+    
+    for selfies in tqdm(selfies_list, desc="Extracting tokens"):
+        try:
+            tokens = sf.split_selfies(selfies)
+            vocab_set.update(tokens)
+        except Exception:
+            continue
+    
+    return vocab_set
 
-def save_processed_data(
-    selfies_list: List[str],
-    output_file: Path,
-    logger: logging.Logger
-) -> None:
-    """
-    Save processed SELFIES data to CSV file.
+def save_data(selfies_list: List[str], vocab_set: Set[str], logger: logging.Logger):
+    """Сохраняет CSV и JSON словаря."""
     
-    Args:
-        selfies_list: List of valid SELFIES strings
-        output_file: Path to output CSV file
-        logger: Logger instance
-    """
-    logger.info(f"Saving processed data to: {output_file}")
-    
+    # 1. Сохраняем CSV
+    logger.info(f"Saving processed data to: {PreprocessConfig.OUTPUT_FILE}")
     df = pd.DataFrame({'selfies': selfies_list})
-    df.to_csv(output_file, index=False)
-    
+    df.to_csv(PreprocessConfig.OUTPUT_FILE, index=False)
     logger.info(f"Successfully saved {len(selfies_list):,} molecules")
-
-
-def save_vocabulary(
-    vocab_set: Set[str],
-    vocab_file: Path,
-    logger: logging.Logger
-) -> List[str]:
-    """
-    Build and save vocabulary JSON file.
     
-    Args:
-        vocab_set: Set of unique tokens
-        vocab_file: Path to output vocabulary file
-        logger: Logger instance
-        
-    Returns:
-        Final vocabulary list with special tokens
-    """
+    # 2. Сохраняем Словарь
     logger.info("Building vocabulary...")
-    
-    # Combine special tokens with sorted vocabulary
+    # Сортируем и добавляем спец. токены в начало
     final_vocab = PreprocessConfig.SPECIAL_TOKENS + sorted(list(vocab_set))
     
-    logger.info(f"Vocabulary size: {len(final_vocab):,} tokens")
+    logger.info(f"Vocabulary size: {len(final_vocab)} tokens")
     logger.info(f"  - Special tokens: {len(PreprocessConfig.SPECIAL_TOKENS)}")
-    logger.info(f"  - Molecular tokens: {len(vocab_set):,}")
+    logger.info(f"  - Molecular tokens: {len(vocab_set)}")
     
-    # Save to JSON
-    with open(vocab_file, 'w', encoding='utf-8') as f:
+    with open(PreprocessConfig.VOCAB_FILE, 'w', encoding='utf-8') as f:
         json.dump(final_vocab, f, indent=2)
+        
+    logger.info(f"Vocabulary saved to: {PreprocessConfig.VOCAB_FILE}")
     
-    logger.info(f"Vocabulary saved to: {vocab_file}")
-    
-    return final_vocab
+    # Показываем примеры
+    print_samples(selfies_list, final_vocab, logger)
 
-
-def print_statistics(stats: Dict[str, int], logger: logging.Logger) -> None:
-    """
-    Print detailed processing statistics.
-    
-    Args:
-        stats: Dictionary of processing statistics
-        logger: Logger instance
-    """
-    logger.info("\n" + "="*60)
-    logger.info("Processing Statistics")
-    logger.info("="*60)
-    logger.info(f"Total molecules:           {stats['total']:>10,}")
-    logger.info(f"Successfully converted:    {stats['converted']:>10,} ({stats['converted']/stats['total']*100:.2f}%)")
-    logger.info(f"Failed conversion:         {stats['failed_conversion']:>10,}")
-    logger.info(f"Sequences too long:        {stats['too_long']:>10,}")
-    logger.info(f"Sequences too short:       {stats['too_short']:>10,}")
-    logger.info(f"Invalid/corrupted:         {stats['invalid']:>10,}")
-    logger.info("="*60 + "\n")
-
-
-def print_sample_data(
-    selfies_list: List[str],
-    vocab: List[str],
-    logger: logging.Logger,
-    n_samples: int = 3
-) -> None:
-    """
-    Print sample molecules and vocabulary tokens.
-    
-    Args:
-        selfies_list: List of SELFIES strings
-        vocab: Vocabulary list
-        logger: Logger instance
-        n_samples: Number of samples to display
-    """
+def print_samples(selfies_list, vocab, logger):
     logger.info("\n" + "="*60)
     logger.info("Sample Molecules (SELFIES)")
     logger.info("="*60)
-    
-    for i, selfies in enumerate(selfies_list[:n_samples], 1):
-        tokens = list(sf.split_selfies(selfies))
+    for i, s in enumerate(selfies_list[:3], 1):
+        tokens = list(sf.split_selfies(s))
         logger.info(f"\nMolecule {i}:")
         logger.info(f"  Length: {len(tokens)} tokens")
-        logger.info(f"  SELFIES: {selfies[:100]}{'...' if len(selfies) > 100 else ''}")
-    
+        logger.info(f"  SELFIES: {s[:100]}...")
+        
     logger.info("\n" + "="*60)
     logger.info("Vocabulary Sample (First 20 tokens)")
     logger.info("="*60)
     logger.info(f"{vocab[:20]}")
     logger.info("="*60 + "\n")
 
+def print_statistics(stats: Dict[str, int], logger: logging.Logger):
+    logger.info("\n" + "="*60)
+    logger.info("Processing Statistics")
+    logger.info("="*60)
+    logger.info(f"Total molecules:            {stats['total']:>10,}")
+    logger.info(f"Successfully converted:     {stats['converted']:>10,} ({stats['converted']/stats['total']*100:.2f}%)")
+    logger.info(f"Failed conversion:          {stats['failed_conversion']:>10,}")
+    logger.info(f"Sequences too long:         {stats['too_long']:>10,}")
+    logger.info(f"Sequences too short:        {stats['too_short']:>10,}")
+    logger.info("="*60 + "\n")
 
-def preprocess_pipeline() -> bool:
-    """
-    Execute complete preprocessing pipeline.
-    
-    Returns:
-        True if successful, False otherwise
-    """
+def main():
     logger = setup_logger()
-    
     logger.info("="*60)
     logger.info("MUG Data Preprocessing Pipeline")
     logger.info("="*60)
     
-    # Validate input
+    # Проверка путей
     if not validate_input_file(PreprocessConfig.INPUT_FILE, logger):
-        return False
+        return
     
-    # Create output directory
     PreprocessConfig.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     logger.info(f"Output directory: {PreprocessConfig.OUTPUT_DIR}")
     
-    try:
-        # Process molecules
-        selfies_list, stats = process_molecules(PreprocessConfig.INPUT_FILE, logger)
-        
-        if not selfies_list:
-            logger.error("No valid molecules after processing. Please check input data.")
-            return False
-        
-        # Print statistics
-        print_statistics(stats, logger)
-        
-        # Extract vocabulary
-        vocab_set = extract_vocabulary(selfies_list, logger)
-        
-        # Save processed data
-        save_processed_data(selfies_list, PreprocessConfig.OUTPUT_FILE, logger)
-        
-        # Save vocabulary
-        final_vocab = save_vocabulary(vocab_set, PreprocessConfig.VOCAB_FILE, logger)
-        
-        # Print samples
-        print_sample_data(selfies_list, final_vocab, logger)
-        
-        logger.info("✅ Preprocessing completed successfully!")
-        return True
-        
-    except Exception as e:
-        logger.error(f"Preprocessing failed: {e}", exc_info=True)
-        return False
+    # Обработка
+    selfies_list, stats = process_molecules(PreprocessConfig.INPUT_FILE, logger)
+    
+    if not selfies_list:
+        logger.error("No valid molecules processed. Check input file format.")
+        return
 
-
-def main():
-    """Main entry point for preprocessing script."""
-    success = preprocess_pipeline()
-    exit(0 if success else 1)
-
+    print_statistics(stats, logger)
+    
+    # Словарь
+    vocab_set = extract_vocabulary(selfies_list, logger)
+    
+    # Сохранение
+    save_data(selfies_list, vocab_set, logger)
+    
+    logger.info("✅ Preprocessing completed successfully!")
 
 if __name__ == "__main__":
     main()

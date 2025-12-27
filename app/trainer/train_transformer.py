@@ -9,9 +9,9 @@ from app.core.transformer_model import MoleculeTransformer
 
 # --- CONFIG ---
 class Config:
-    FILE_DATA = 'dataset/processed/transformer_train.csv'
-    FILE_VOCAB = 'dataset/processed/vocab_transformer.json'
-    SAVE_DIR = 'checkpoints_transformer_v2'
+    FILE_DATA = 'dataset/processed_v2/transformer_train.csv'
+    FILE_VOCAB = 'dataset/processed_v2/vocab_transformer.json'
+    SAVE_DIR = 'checkpoints_transformer_v3'
     
     BATCH_SIZE = 64
     EPOCHS = 30         

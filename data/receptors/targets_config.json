@@ -1,19 +1,20 @@
 {
   "alzheimer": {
-    "pdb_file": "D:\\dovnald\\Programming\\Python\\AI\\PyTorchLearn\\Project\\Molecular Universe Generator\\data\\receptors\\alzheimer.pdb",
+    "receptor_path": "D:\\dovnald\\Programming\\Python\\AI\\PyTorchLearn\\Project\\Molecular Universe Generator\\data\\receptors\\alzheimer.pdbqt",
     "center": [
       2.3,
       64.6,
       67.4
     ],
     "size": [
-      22,
-      22,
-      22
-    ]
+      20,
+      20,
+      20
+    ],
+    "name": "Acetylcholinesterase"
   },
   "lung": {
-    "pdb_file": "D:\\dovnald\\Programming\\Python\\AI\\PyTorchLearn\\Project\\Molecular Universe Generator\\data\\receptors\\lung.pdb",
+    "receptor_path": "D:\\dovnald\\Programming\\Python\\AI\\PyTorchLearn\\Project\\Molecular Universe Generator\\data\\receptors\\lung.pdbqt",
     "center": [
       22.0,
       0.0,
@@ -23,32 +24,21 @@
       20,
       20,
       20
-    ]
+    ],
+    "name": "EGFR Kinase"
   },
   "covid": {
-    "pdb_file": "D:\\dovnald\\Programming\\Python\\AI\\PyTorchLearn\\Project\\Molecular Universe Generator\\data\\receptors\\covid.pdb",
+    "receptor_path": "D:\\dovnald\\Programming\\Python\\AI\\PyTorchLearn\\Project\\Molecular Universe Generator\\data\\receptors\\covid.pdbqt",
     "center": [
       -10.7,
       12.5,
       68.4
     ],
     "size": [
-      24,
-      24,
-      24
-    ]
-  },
-  "hiv": {
-    "pdb_file": "D:\\dovnald\\Programming\\Python\\AI\\PyTorchLearn\\Project\\Molecular Universe Generator\\data\\receptors\\hiv.pdb",
-    "center": [
-      9.0,
-      9.0,
-      9.0
+      20,
+      20,
+      20
     ],
-    "size": [
-      22,
-      22,
-      22
-    ]
+    "name": "M-pro"
   }
 }

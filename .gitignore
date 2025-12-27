@@ -20,32 +20,47 @@ ENV/
 
 # --- Secrets & Configuration ---
 .env
+# config.py оставляем, но убедись, что там нет реальных API ключей (используй os.getenv)
 
 # --- Logs & Monitoring ---
 logs/
 *.log
 training_logs/
+hs_err_*.log
 
-# --- Heavy Data (MUG Specific) ---
+# --- Heavy Data (MUG Specific) - EXCLUDE ALL DATA & MODELS ---
 *.pth
-checkpoints/
-checkpoints_*/
 *.pt
 *.ckpt
+*.pkl
+*.gz
+*.zip
 
+# Folders with heavy weights
+checkpoints/
+checkpoints_*/
+data/checkpoints/
+data/models/
+
+# Raw and Processed Datasets
 data/raw/
 data/processed/
 data/gnn_datasets/
 dataset/raw/
 dataset/processed/
+dataset/processed_v2/
 
+# Cache
 cache/
 
 # --- Generated Outputs ---
 *.jpg
+*.png
 *.svg
 *.sdf
 *.mol
+benchmark_results/
 
 # --- Specific Training Artifacts ---
 *_stats.json
+tmp_*.txt

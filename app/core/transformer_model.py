@@ -207,6 +207,8 @@ class MoleculeTransformer(nn.Module):
         # Project to latent distribution parameters
         mu = self.fc_mu(pooled)
         logvar = self.fc_logvar(pooled)
+
+        logvar = torch.clamp(logvar, min=-10, max=10)
         
         return mu, logvar
     

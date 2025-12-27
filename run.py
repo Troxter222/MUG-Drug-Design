@@ -21,6 +21,10 @@ from app.bot import MolecularBot
 
 def setup_logger() -> logging.Logger:
     """Configure application logger."""
+    from rdkit import rdBase
+    
+    rdBase.DisableLog('rdApp.*')
+
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s | %(levelname)-8s | %(message)s',

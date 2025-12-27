@@ -77,6 +77,64 @@ class Config:
     MAX_MOLECULAR_WEIGHT: float = 900.0
     MIN_QED_THRESHOLD: float = 0.1
     TARGETED_QED_THRESHOLD: float = 0.2
+
+    # ========================
+    # Model Registry & Paths
+    # ========================
+
+    MODEL_REGISTRY: Dict[str, Any] = {
+        "rl_neuro_v2": {
+            "name": "🧠 Neuro-Hunter V2 (RL Optimized 'BEST')",
+            "path": "checkpoints_rl_finetuned/mug_rl_neuro_v2.pth",
+            "type": "transformer",
+            "vocab": "dataset/processed/vocab_transformer.json",
+            "params": {"embed": 256, "hidden": 1024, "layers": 4, "nhead": 8}
+        },
+        "trans_rl_best": {
+            "name": "🚀 Transformer RL",
+            "path": "checkpoints_rl_transformer/mug_transformer_rl_best.pth",
+            "type": "transformer",
+            "vocab": "dataset/processed/vocab_transformer.json",
+            "params": {"embed": 256, "hidden": 1024, "layers": 4, "nhead": 8}
+        },
+        "trans_v2": {
+            "name": "🔹 Transformer V2 (Epoch 11)",
+            "path": "checkpoints_transformer_v2/mug_trans_v2_ep11.pth",
+            "type": "transformer",
+            "vocab": "dataset/processed/vocab_transformer.json",
+            "params": {"embed": 256, "hidden": 1024, "layers": 4, "nhead": 8}
+        },
+        "mug_universal_v1": {
+            "name": "🔹 Mug Universal",
+            "path": "checkpoints_rl_universal/mug_universal_v1.pth",
+            "type": "transformer",
+            "vocab": "dataset/processed/vocab_transformer.json",
+            "params": {"embed": 256, "hidden": 1024, "layers": 4, "nhead": 8}
+        },
+        "gru_base": {
+            "name": "🕰️ GRU Base (Legacy)",
+            "path": "data/checkpoints_selfies/mug_selfies_epoch_10.pth",
+            "type": "gru",
+            "vocab": "dataset/processed/vocab_transformer.json",
+            "params": {"embed": 64, "hidden": 256, "layers": 3, "latent": 128} 
+        },
+        "gru_rl": {
+            "name": "🧪 GRU RL (Legacy)",
+            "path": "data/checkpoints_rl/mug_rl_best.pth",
+            "type": "gru",
+            "vocab": "dataset/processed/vocab_transformer.json",
+            "params": {"embed": 64, "hidden": 256, "layers": 3, "latent": 128}
+        },
+    }
+
+    # По умолчанию берем Transformer RL
+    CURRENT_MODEL_KEY = "rl_neuro_v2"
+    
+    # Эти пути теперь динамические, но оставим как fallback
+    MODEL_FILENAME: str = MODEL_REGISTRY[CURRENT_MODEL_KEY]["path"]
+    CHECKPOINT_PATH: Path = BASE_DIR / MODEL_FILENAME
+    VOCAB_FILENAME: str = MODEL_REGISTRY[CURRENT_MODEL_KEY]["vocab"]
+    VOCAB_PATH: Path = BASE_DIR / VOCAB_FILENAME
     
     # ========================
     # Therapeutic Target Database
@@ -84,226 +142,58 @@ class Config:
     DISEASE_DB: Dict[str, Any] = {
         "neuro": {
             "title": "🧠 Neuroscience",
-            "description": "Central nervous system disorders",
             "targets": {
                 "alzheimer": {
-                    "name": "Alzheimer's Disease",
-                    "ref": "COC1=C(C=C2C(=C1)CC(C2=O)CC3CCN(CC3)CC4=CC=CC=C4)OC",
-                    "protein": "Acetylcholinesterase"
-                },
-                "parkinson": {
-                    "name": "Parkinson's Disease",
-                    "ref": "NC1CC2C=CC=CC=2C1",
-                    "protein": "MAO-B"
-                },
-                "glioblastoma": {
-                    "name": "Glioblastoma",
-                    "ref": "CN1C(=O)N(C)C(=O)C(N)=C1N=NC2=CC=CC=C2C(=O)N",
-                    "protein": "EGFR"
-                },
-                "epilepsy": {
-                    "name": "Epilepsy",
-                    "ref": "NC(=O)C1=CC=C(C=C1)N2C(=O)CN=C2",
-                    "protein": "GABA-A Receptor"
-                },
-                "depression": {
-                    "name": "Major Depression",
-                    "ref": "CNCCC(C1=CC=CC=C1)OC2=CC=CC3=CC=CC=C32",
-                    "protein": "Serotonin Transporter"
+                    "disease": "Alzheimer's Disease",
+                    "target_name": "Acetylcholinesterase (AChE)",
+                    "target_class": "Enzyme (Hydrolase)",
+                    "ref": "COC1=C(C=C2C(=C1)CC(C2=O)CC3CCN(CC3)CC4=CC=CC=C4)OC", # Donepezil
+                    "pdb_id": "1EVE"
                 },
                 "schizophrenia": {
-                    "name": "Schizophrenia",
-                    "ref": "CN1CCN(CC1)C2=NC3=CC=CC=C3NC4=C2C=CC(=C4)Cl",
-                    "protein": "Dopamine D2 Receptor"
+                    "disease": "Schizophrenia",
+                    "target_name": "Dopamine D2 Receptor (DRD2)",
+                    "target_class": "GPCR (Class A)",
+                    "ref": "CN1CCN(CC1)C2=NC3=CC=CC=C3NC4=C2C=CC(=C4)Cl", # Clozapine derivative
+                    "pdb_id": "6CM4"
                 }
             }
         },
-        
         "onco": {
             "title": "🦀 Oncology",
-            "description": "Cancer therapeutics",
             "targets": {
                 "lung": {
-                    "name": "Lung Cancer (NSCLC)",
-                    "ref": "COCC1=C(C=C2C(=C1)N=CN=C2NC3=CC=CC(=C3)C#C)OCCOC",
-                    "protein": "EGFR"
-                },
-                "liver": {
-                    "name": "Hepatocellular Carcinoma",
-                    "ref": "CNC(=O)C1=NC=CC(=C1)OC2=CC=C(C=C2)NC(=O)NC3=CC(=C(C=C3)Cl)C(F)(F)F",
-                    "protein": "VEGFR"
-                },
-                "breast": {
-                    "name": "Breast Cancer",
-                    "ref": "CCC(=O)NC1=CC=C(C=C1)N(CCCl)CCCl",
-                    "protein": "Estrogen Receptor"
-                },
-                "prostate": {
-                    "name": "Prostate Cancer",
-                    "ref": "CNC(=O)C1=C(SC=C1)OCC2=CC=C(C=C2)F",
-                    "protein": "Androgen Receptor"
+                    "disease": "NSCLC (Lung Cancer)",
+                    "target_name": "EGFR Kinase (L858R)",
+                    "target_class": "Kinase (Tyrosine)",
+                    "ref": "COCC1=C(C=C2C(=C1)N=CN=C2NC3=CC=CC(=C3)C#C)OCCOC", # Erlotinib
+                    "pdb_id": "1M17"
                 },
                 "melanoma": {
-                    "name": "Melanoma",
-                    "ref": "CS(=O)(=O)CCNCC1=CC=C(O1)C2=CC=C(C=C2)Cl",
-                    "protein": "BRAF V600E"
-                },
-                "leukemia": {
-                    "name": "Chronic Myeloid Leukemia",
-                    "ref": "CN1CCN(CC1)CC2=CC=C(C=C2)NC(=O)C3=CC(=C(C=C3)NC4=NC=CC(=N4)C5=CN=CC=C5)C(F)(F)F",
-                    "protein": "BCR-ABL"
+                    "disease": "Melanoma",
+                    "target_name": "BRAF (V600E)",
+                    "target_class": "Kinase (Serine/Threonine)",
+                    "ref": "CS(=O)(=O)CCNCC1=CC=C(O1)C2=CC=C(C=C2)Cl", # Vemurafenib analog
+                    "pdb_id": "3OG7"
                 }
             }
         },
-        
         "viral": {
-            "title": "🦠 Infectious Diseases",
-            "description": "Viral and bacterial infections",
+            "title": "🦠 Virology",
             "targets": {
                 "covid": {
-                    "name": "COVID-19",
-                    "ref": "CC(C)(C)NC(=O)C1CN(CC1)CC(C(CC2=CC=CC=C2)NC(=O)C3=CN=CC=N3)O",
-                    "protein": "3CL Protease"
-                },
-                "influenza": {
-                    "name": "Influenza",
-                    "ref": "CCC(CC)OC1C=C(CC(C1NC(=O)C)N)C(=O)O",
-                    "protein": "Neuraminidase"
+                    "disease": "COVID-19",
+                    "target_name": "SARS-CoV-2 M-pro (3CL)",
+                    "target_class": "Protease (Cysteine)",
+                    "ref": "CC(C)(C)NC(=O)C1CN(CC1)CC(C(CC2=CC=CC=C2)NC(=O)C3=CN=CC=N3)O", # Paxlovid component
+                    "pdb_id": "6LU7"
                 },
                 "hiv": {
-                    "name": "HIV/AIDS",
-                    "ref": "CC(C)CN(CC(C(CC1=CC=CC=C1)NC(=O)OC2CCOC2)O)S(=O)(=O)C3=CC=C(C=C3)N",
-                    "protein": "HIV Protease"
-                },
-                "hepatitis_c": {
-                    "name": "Hepatitis C",
-                    "ref": "CC(C)(C)NC(=O)C1CN(C2CC3(CC2C1)NC(=O)NC3=O)C(=O)C(NC(=O)OC)C(C)(C)C",
-                    "protein": "NS3/4A Protease"
-                },
-                "tuberculosis": {
-                    "name": "Tuberculosis",
-                    "ref": "CC1=NC=C(C(=C1)C(=O)NC2=CC=C(C=C2)N3CCOCC3)C",
-                    "protein": "InhA"
-                }
-            }
-        },
-        
-        "cardio": {
-            "title": "❤️ Cardiovascular",
-            "description": "Heart and vascular disorders",
-            "targets": {
-                "hypertension": {
-                    "name": "Hypertension",
-                    "ref": "CCCCC1=NC(=C(N1CC2=CC=C(C=C2)C3=CC=CC=C3C4=NNN=N4)CO)Cl",
-                    "protein": "Angiotensin II Receptor"
-                },
-                "thrombosis": {
-                    "name": "Thrombosis",
-                    "ref": "CCC(=O)N1CCCC1C(=O)N2C3CCCCC3CC2C(=O)O",
-                    "protein": "Factor Xa"
-                },
-                "heart_failure": {
-                    "name": "Heart Failure",
-                    "ref": "CCCCC(CC)COC(=O)C(C)NP(=O)(OC1=CC=CC=C1)OC2=CC=CC=C2",
-                    "protein": "ACE"
-                },
-                "arrhythmia": {
-                    "name": "Cardiac Arrhythmia",
-                    "ref": "CCCCNC1=C2C(=NC(=N1)N)N(C=N2)C3C(C(C(O3)COP(=O)(O)O)O)O",
-                    "protein": "hERG Channel"
-                }
-            }
-        },
-        
-        "metabolic": {
-            "title": "⚡ Metabolic Disorders",
-            "description": "Diabetes and metabolic syndrome",
-            "targets": {
-                "diabetes_t2": {
-                    "name": "Type 2 Diabetes",
-                    "ref": "CC(C)C(CC1=CC(=C(C=C1)O)O)NC(C2CCC(CC2)(C#N)N)O",
-                    "protein": "DPP-4"
-                },
-                "obesity": {
-                    "name": "Obesity",
-                    "ref": "CN1C2CCC1CC(C2)OC(=O)C(CO)C3=CC=CC=C3",
-                    "protein": "MC4 Receptor"
-                },
-                "hyperlipidemia": {
-                    "name": "Hyperlipidemia",
-                    "ref": "CC(C)C1=CC=C(C=C1)C(C)C(=O)O",
-                    "protein": "HMG-CoA Reductase"
-                }
-            }
-        },
-        
-        "immune": {
-            "title": "🛡️ Immunology",
-            "description": "Autoimmune and inflammatory diseases",
-            "targets": {
-                "rheumatoid": {
-                    "name": "Rheumatoid Arthritis",
-                    "ref": "CC1=C(C=C(C=C1)NC(=O)C2=CC=C(C=C2)CN3CCN(CC3)C)NC4=NC=CC(=N4)C5=CN=CC=C5",
-                    "protein": "JAK"
-                },
-                "psoriasis": {
-                    "name": "Psoriasis",
-                    "ref": "CN1C2=C(C=C(C=C2)N)NC1=O",
-                    "protein": "PDE4"
-                },
-                "lupus": {
-                    "name": "Systemic Lupus",
-                    "ref": "C1CN(CCN1)C2=CC=C(C=C2)NC(=O)C3=CC4=C(C=C3)N=CN=C4N",
-                    "protein": "TLR7/9"
-                },
-                "crohns": {
-                    "name": "Crohn's Disease",
-                    "ref": "CC1=CC=C(C=C1)C2=C(N=C(S2)N3CCN(CC3)C)C4=CC=C(C=C4)F",
-                    "protein": "TNF-α"
-                }
-            }
-        },
-        
-        "pain": {
-            "title": "💊 Pain Management",
-            "description": "Analgesics and pain relief",
-            "targets": {
-                "chronic_pain": {
-                    "name": "Chronic Pain",
-                    "ref": "CN1CCC(CC1)N2C3=CC=CC=C3SC4=C2C=C(C=C4)Cl",
-                    "protein": "μ-Opioid Receptor"
-                },
-                "neuropathic": {
-                    "name": "Neuropathic Pain",
-                    "ref": "CC(C)CC1=CC=C(C=C1)C(C)C(=O)O",
-                    "protein": "COX-2"
-                },
-                "migraine": {
-                    "name": "Migraine",
-                    "ref": "CN1C2=CC=CC=C2C(=O)N(C1=O)CC3CCCCC3",
-                    "protein": "5-HT1B Receptor"
-                }
-            }
-        },
-        
-        "respiratory": {
-            "title": "🫁 Respiratory",
-            "description": "Pulmonary disorders",
-            "targets": {
-                "asthma": {
-                    "name": "Asthma",
-                    "ref": "CC(C)(C)NCC(COC1=CC=CC2=C1CCCC2)O",
-                    "protein": "β2-Adrenergic Receptor"
-                },
-                "copd": {
-                    "name": "COPD",
-                    "ref": "CN(C)C(=O)OC1=CC=CC(=C1)C(C)N",
-                    "protein": "Muscarinic Receptor"
-                },
-                "fibrosis": {
-                    "name": "Pulmonary Fibrosis",
-                    "ref": "COC1=CC2=C(C=C1)C(=CN=C2NC3=CC(=C(C=C3)F)Cl)C#C",
-                    "protein": "TGF-β Receptor"
+                    "disease": "HIV-1 Infection",
+                    "target_name": "HIV-1 Protease",
+                    "target_class": "Protease (Aspartyl)",
+                    "ref": "CC(C)CN(CC(C(CC1=CC=CC=C1)NC(=O)OC2CCOC2)O)S(=O)(=O)C3=CC=C(C=C3)N", # Darunavir
+                    "pdb_id": "1HSG"
                 }
             }
         }
