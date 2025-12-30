@@ -1,27 +1,39 @@
+"""
+Molecular Universe Generator (MUG) - Model Benchmark Suite
+Author: Ali (Troxter222)
+License: MIT
+
+Comprehensive evaluation framework for comparing molecular generation models.
+Tests validity, uniqueness, drug-likeness (QED), and toxicity metrics.
+"""
+
 import torch
 import json
 import os
 import glob
-import pandas as pd
 import selfies as sf
 from rdkit import Chem
 from rdkit.Chem import Draw, Descriptors
-import matplotlib.pyplot as plt
 from app.core.transformer_model import MoleculeTransformer
 
-# --- КОНФИГУРАЦИЯ (Должна совпадать с train_transformer.py) ---
+
 class TestConfig:
+    """
+    Configuration settings.
+    NOTE: These parameters must match the training configuration exactly.
+    """
     VOCAB_FILE = 'dataset/processed/vocab_transformer.json'
     CHECKPOINT_DIR = 'checkpoints_transformer'
-    
-    # Архитектура (Обязана совпадать с обучением!)
+
+    # Architecture settings
     D_MODEL = 128
     NHEAD = 4
     LAYERS = 3
     LATENT = 64
     MAX_LEN = 150
-    
+
     DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
 
 class SimpleVocab:
     def __init__(self, vocab_file):
@@ -37,39 +49,42 @@ class SimpleVocab:
         tokens = []
         for i in indices:
             idx = i.item() if torch.is_tensor(i) else i
-            if idx == self.eos_idx: 
+            if idx == self.eos_idx:
                 break
             if idx != self.pad_idx and idx != self.sos_idx:
                 tokens.append(self.idx2char[idx])
         return "".join(tokens)
 
+
 def get_latest_checkpoint():
-    """Находит самый свежий файл весов"""
+    """Finds the most recently created weight file."""
     files = glob.glob(f"{TestConfig.CHECKPOINT_DIR}/*.pth")
     if not files:
         return None
-    # Сортируем по времени создания (свежие в конце)
+    # Sort by creation time (newest last)
     latest_file = max(files, key=os.path.getctime)
     return latest_file
 
+
 def test():
-    print("🔬 ЗАПУСК ТЕСТА ТРАНСФОРМЕРА...")
-    
-    # 1. Загрузка словаря
+    print("Running Transformer Test...")
+
+    # 1. Load Vocabulary
     if not os.path.exists(TestConfig.VOCAB_FILE):
-        print(f"❌ Словарь не найден: {TestConfig.VOCAB_FILE}")
+        print(f"Error: Vocabulary not found: {TestConfig.VOCAB_FILE}")
         return
     vocab = SimpleVocab(TestConfig.VOCAB_FILE)
-    
-    # 2. Поиск модели
+
+    # 2. Find Model
     ckpt_path = get_latest_checkpoint()
     if not ckpt_path:
-        print(f"❌ Чекпоинты не найдены в {TestConfig.CHECKPOINT_DIR}. Подожди окончания 1-й эпохи.")
+        print(f"Error: No checkpoints found in {TestConfig.CHECKPOINT_DIR}. "
+              "Wait for the first epoch to finish.")
         return
-    
-    print(f"📂 Загружаю веса: {ckpt_path}")
-    
-    # 3. Инициализация
+
+    print(f"Loading weights: {ckpt_path}")
+
+    # 3. Initialization
     model = MoleculeTransformer(
         vocab_size=len(vocab.vocab),
         d_model=TestConfig.D_MODEL,
@@ -78,29 +93,33 @@ def test():
         num_decoder_layers=TestConfig.LAYERS,
         latent_size=TestConfig.LATENT
     ).to(TestConfig.DEVICE)
-    
-    model.load_state_dict(torch.load(ckpt_path, map_location=TestConfig.DEVICE))
+
+    model.load_state_dict(
+        torch.load(ckpt_path, map_location=TestConfig.DEVICE)
+    )
     model.eval()
-    
-    # 4. Генерация
-    NUM_SAMPLES = 50
-    print(f"⚗️ Генерирую {NUM_SAMPLES} молекул...")
-    
+
+    # 4. Generation
+    num_samples = 50
+    print(f"Generating {num_samples} molecules...")
+
     valid_mols = []
     valid_smiles = []
-    
+
     with torch.no_grad():
-        for _ in range(NUM_SAMPLES):
-            # Генерируем 1 штуку (можно батчами, но так проще дебажить)
-            indices = model.sample(TestConfig.DEVICE, vocab, max_len=TestConfig.MAX_LEN)
+        for _ in range(num_samples):
+            # Generate 1 sample
+            indices = model.sample(
+                TestConfig.DEVICE, vocab, max_len=TestConfig.MAX_LEN
+            )
             selfies_str = vocab.decode(indices)
-            
+
             try:
-                # Декодируем SELFIES -> SMILES
+                # Decode SELFIES -> SMILES
                 smi = sf.decoder(selfies_str)
-                if not smi: 
+                if not smi:
                     continue
-                
+
                 mol = Chem.MolFromSmiles(smi)
                 if mol:
                     valid_mols.append(mol)
@@ -108,31 +127,38 @@ def test():
             except Exception:
                 continue
 
-    # 5. Результаты
-    validity = (len(valid_mols) / NUM_SAMPLES) * 100
+    # 5. Results
+    validity = (len(valid_mols) / num_samples) * 100
     unique = len(set(valid_smiles))
     unique_ratio = (unique / len(valid_smiles) * 100) if valid_smiles else 0
-    
-    print("\n📊 ОТЧЕТ О ТЕСТИРОВАНИИ:")
-    print(f"✅ Валидность: {validity:.1f}% (Цель > 80%)")
-    print(f"🦄 Уникальность: {unique_ratio:.1f}%")
-    
+
+    print("\nTEST REPORT:")
+    print(f"Validity: {validity:.1f}% (Target > 80%)")
+    print(f"Uniqueness: {unique_ratio:.1f}%")
+
     if valid_mols:
-        print("\n🧪 Примеры генерации:")
+        print("\nGeneration examples:")
         for i in range(min(5, len(valid_smiles))):
             print(f"{i+1}. {valid_smiles[i]}")
-            
-        # Рисуем сетку
-        img = Draw.MolsToGridImage(valid_mols[:9], molsPerRow=3, subImgSize=(300, 300), legends=[f"Mol {i+1}" for i in range(len(valid_mols[:9]))])
+
+        # Draw grid
+        img = Draw.MolsToGridImage(
+            valid_mols[:9],
+            molsPerRow=3,
+            subImgSize=(300, 300),
+            legends=[f"Mol {i+1}" for i in range(len(valid_mols[:9]))]
+        )
         img.save("transformer_test_results.png")
-        print("\n🖼 Картинка сохранена в transformer_test_results.png")
-        
-        # Считаем средний QED
+        print("\nImage saved to transformer_test_results.png")
+
+        # Calculate average QED
         qeds = [Descriptors.qed(m) for m in valid_mols]
         avg_qed = sum(qeds) / len(qeds)
-        print(f"💊 Средний QED (Drug-likeness): {avg_qed:.2f}")
+        print(f"Average QED (Drug-likeness): {avg_qed:.2f}")
     else:
-        print("⚠️ Модель сгенерировала только мусор. Нужно учить дольше.")
+        print("Warning: Model generated only invalid data. "
+              "More training required.")
+
 
 if __name__ == "__main__":
     test()

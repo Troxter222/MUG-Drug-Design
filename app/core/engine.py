@@ -1,3 +1,10 @@
+"""
+Author: Ali (Troxter222)
+Project: MUG (Molecular Universe Generator)
+Date: 2025
+License: MIT
+"""
+
 import torch
 import torch.nn as nn
 
@@ -36,7 +43,7 @@ class MolecularVAE(nn.Module):
         
         return mu + eps * std
     
-    def sample(self, n_samples, device, vocab, max_len=200, temp=1.0):
+    def sample(self, n_samples, device, vocab, max_len=200, temperature=1.0):
         z = torch.randn(n_samples, self.latent_size).to(device)
         
         hidden = self.decoder_input(z)
@@ -50,7 +57,7 @@ class MolecularVAE(nn.Module):
             output, hidden = self.decoder_gru(embedded, hidden)
             logits = self.fc_out(output)
             
-            probs = torch.nn.functional.softmax(logits.squeeze(1) / temp, dim=-1)
+            probs = torch.nn.functional.softmax(logits.squeeze(1) / temperature, dim=-1)
             next_token = torch.multinomial(probs, 1)
             
             decoded_indices.append(next_token)

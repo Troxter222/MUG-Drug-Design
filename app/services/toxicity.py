@@ -1,15 +1,24 @@
-import os
 import joblib
 import numpy as np
+from pathlib import Path
 from rdkit import Chem
 from rdkit.Chem import AllChem
-from pathlib import Path
+
+try:
+    from rdkit.Chem import rdFingerprintGenerator
+    HAS_GENERATOR = True
+except ImportError:
+    HAS_GENERATOR = False
+
 
 class ToxicityService:
-    # Путь к моделям
+    """
+    Service for predicting molecular toxicity using pre-trained models.
+    """
+    # Path to model directory
     MODEL_DIR = Path("data/models/tox21")
-    
-    # Красивые названия для отчета
+
+    # Human-readable labels for report generation
     LABELS = {
         'SR-ATAD5': 'Genotoxicity (DNA Damage)',
         'NR-AhR': 'Toxin Response (AhR)',
@@ -26,10 +35,11 @@ class ToxicityService:
         self._load_models()
 
     def _load_models(self):
+        """Loads all .pkl models from the specified directory."""
         if not self.MODEL_DIR.exists():
             print("⚠️ Toxicity models not found. Run train_tox_ai.py first.")
             return
-            
+
         print("☢️ Loading AI-Toxicology Models...")
         try:
             for task_file in self.MODEL_DIR.glob("*.pkl"):
@@ -42,37 +52,53 @@ class ToxicityService:
 
     def predict(self, mol):
         """
-        Возвращает список рисков с вероятностями.
+        Predicts toxicity risks for a given RDKit molecule.
+        Returns a list of formatted warning strings.
         """
         if not self.loaded or not mol:
             return []
 
-        # Векторизация (Fingerprint)
+        # Generate Morgan Fingerprint
         try:
-            from rdkit.Chem import rdFingerprintGenerator
-            gen = rdFingerprintGenerator.GetMorganGenerator(radius=2, fpSize=1024)
-            fp = gen.GetFingerprint(mol)
-        except Exception:
-            # Старый способ (если версия RDKit старая)
-            fp = AllChem.GetMorganFingerprintAsBitVect(mol, 2, nBits=1024)
-        fp_arr = np.array(fp).reshape(1, -1)
-        
-        risks = []
-        
-        # Прогон по всем моделям
-        for task, model in self.models.items():
-            # Получаем вероятность класса "1" (Токсичен)
-            prob = model.predict_proba(fp_arr)[0][1]
+            if HAS_GENERATOR:
+                gen = rdFingerprintGenerator.GetMorganGenerator(
+                    radius=2, fpSize=1024
+                )
+                fp = gen.GetFingerprintAsNumPy(mol)
+            else:
+                fp = AllChem.GetMorganFingerprintAsBitVect(
+                    mol, 2, nBits=1024
+                )
             
-            # Если вероятность > 50% (или выше для строгости), считаем риском
+            # Ensure it is a reshaped numpy array for sklearn
+            fp_arr = np.array(fp).reshape(1, -1)
+
+        except Exception as e:
+            print(f"Error generating fingerprint: {e}")
+            return []
+
+        risks = []
+
+        for task, model in self.models.items():
+            # Get probability for class 1 (Toxic)
+            try:
+                prob = model.predict_proba(fp_arr)[0][1]
+            except AttributeError:
+                continue
+
             if prob > 0.5:
-                # Берем красивое имя или код
                 name = self.LABELS.get(task, task)
-                
-                # Уровень опасности
-                severity = "High" if prob > 0.8 else "Medium" if prob > 0.65 else "Low"
-                icon = "🔴" if prob > 0.8 else "🟠" if prob > 0.65 else "🟡"
-                
-                risks.append(f"{icon} {name}: {prob*100:.0f}% ({severity})")
-                
+
+                if prob > 0.8:
+                    severity = "High"
+                    icon = "🔴"
+                elif prob > 0.65:
+                    severity = "Medium"
+                    icon = "🟠"
+                else:
+                    severity = "Low"
+                    icon = "🟡"
+
+                risks.append(f"{icon} {name}: {prob * 100:.0f}% ({severity})")
+
         return risks

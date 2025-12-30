@@ -84,42 +84,42 @@ class Config:
 
     MODEL_REGISTRY: Dict[str, Any] = {
         "rl_neuro_v2": {
-            "name": "🧠 Neuro-Hunter V2 (RL Optimized 'BEST')",
+            "name": "Neuro-Hunter V2 (RL Optimized 'BEST')",
             "path": "checkpoints_rl_finetuned/mug_rl_neuro_v2.pth",
             "type": "transformer",
             "vocab": "dataset/processed/vocab_transformer.json",
             "params": {"embed": 256, "hidden": 1024, "layers": 4, "nhead": 8}
         },
         "trans_rl_best": {
-            "name": "🚀 Transformer RL",
+            "name": "Transformer RL",
             "path": "checkpoints_rl_transformer/mug_transformer_rl_best.pth",
             "type": "transformer",
             "vocab": "dataset/processed/vocab_transformer.json",
             "params": {"embed": 256, "hidden": 1024, "layers": 4, "nhead": 8}
         },
         "trans_v2": {
-            "name": "🔹 Transformer V2 (Epoch 11)",
+            "name": "Transformer V2 (Epoch 11)",
             "path": "checkpoints_transformer_v2/mug_trans_v2_ep11.pth",
             "type": "transformer",
             "vocab": "dataset/processed/vocab_transformer.json",
             "params": {"embed": 256, "hidden": 1024, "layers": 4, "nhead": 8}
         },
         "mug_universal_v1": {
-            "name": "🔹 Mug Universal",
+            "name": "Mug Universal",
             "path": "checkpoints_rl_universal/mug_universal_v1.pth",
             "type": "transformer",
             "vocab": "dataset/processed/vocab_transformer.json",
             "params": {"embed": 256, "hidden": 1024, "layers": 4, "nhead": 8}
         },
         "gru_base": {
-            "name": "🕰️ GRU Base (Legacy)",
+            "name": "GRU Base (Legacy)",
             "path": "data/checkpoints_selfies/mug_selfies_epoch_10.pth",
             "type": "gru",
             "vocab": "dataset/processed/vocab_transformer.json",
             "params": {"embed": 64, "hidden": 256, "layers": 3, "latent": 128} 
         },
         "gru_rl": {
-            "name": "🧪 GRU RL (Legacy)",
+            "name": "GRU RL (Legacy)",
             "path": "data/checkpoints_rl/mug_rl_best.pth",
             "type": "gru",
             "vocab": "dataset/processed/vocab_transformer.json",
@@ -127,10 +127,8 @@ class Config:
         },
     }
 
-    # По умолчанию берем Transformer RL
     CURRENT_MODEL_KEY = "rl_neuro_v2"
     
-    # Эти пути теперь динамические, но оставим как fallback
     MODEL_FILENAME: str = MODEL_REGISTRY[CURRENT_MODEL_KEY]["path"]
     CHECKPOINT_PATH: Path = BASE_DIR / MODEL_FILENAME
     VOCAB_FILENAME: str = MODEL_REGISTRY[CURRENT_MODEL_KEY]["vocab"]
@@ -141,7 +139,7 @@ class Config:
     # ========================
     DISEASE_DB: Dict[str, Any] = {
         "neuro": {
-            "title": "🧠 Neuroscience",
+            "title": "Neuroscience",
             "targets": {
                 "alzheimer": {
                     "disease": "Alzheimer's Disease",
@@ -160,7 +158,7 @@ class Config:
             }
         },
         "onco": {
-            "title": "🦀 Oncology",
+            "title": "Oncology",
             "targets": {
                 "lung": {
                     "disease": "NSCLC (Lung Cancer)",
@@ -179,7 +177,7 @@ class Config:
             }
         },
         "viral": {
-            "title": "🦠 Virology",
+            "title": "Virology",
             "targets": {
                 "covid": {
                     "disease": "COVID-19",
@@ -214,17 +212,17 @@ class Config:
         
         # Check API token
         if not cls.API_TOKEN:
-            warnings.warn("⚠️ TELEGRAM_TOKEN not found in environment", UserWarning)
+            warnings.warn("TELEGRAM_TOKEN not found in environment", UserWarning)
             is_valid = False
         
         # Check vocabulary file
         if not cls.VOCAB_PATH.exists():
-            warnings.warn(f"⚠️ Vocabulary file missing: {cls.VOCAB_PATH}", UserWarning)
+            warnings.warn(f"Vocabulary file missing: {cls.VOCAB_PATH}", UserWarning)
             is_valid = False
         
         # Check model checkpoint
         if not cls.CHECKPOINT_PATH.exists():
-            warnings.warn(f"⚠️ Model checkpoint missing: {cls.CHECKPOINT_PATH}", UserWarning)
+            warnings.warn(f"Model checkpoint missing: {cls.CHECKPOINT_PATH}", UserWarning)
             is_valid = False
         
         # Create necessary directories
@@ -233,7 +231,7 @@ class Config:
         
         # Validate device
         if cls.DEVICE_NAME == "cuda" and not torch.cuda.is_available():
-            warnings.warn("⚠️ CUDA requested but not available. Falling back to CPU.", UserWarning)
+            warnings.warn("CUDA requested but not available. Falling back to CPU.", UserWarning)
             cls.DEVICE = torch.device("cpu")
         
         return is_valid

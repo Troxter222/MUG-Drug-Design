@@ -6,18 +6,16 @@ License: MIT
 Main launcher for the MUG Telegram bot interface.
 """
 
+from app.bot import MolecularBot
+
 import logging
 import os
 import signal
 import sys
 from pathlib import Path
 
-# Add project root to Python path for proper imports
 PROJECT_ROOT = Path(__file__).parent.absolute()
 sys.path.insert(0, str(PROJECT_ROOT))
-
-from app.bot import MolecularBot
-
 
 def setup_logger() -> logging.Logger:
     """Configure application logger."""
@@ -77,6 +75,7 @@ def main():
     
     if not validate_environment():
         logger.critical("Environment validation failed. Exiting.")
+        
         sys.exit(1)
     
     try:
@@ -96,21 +95,25 @@ def main():
     except ImportError as e:
         logger.critical(f"Failed to import required modules: {e}")
         logger.critical("Ensure all dependencies are installed: pip install -r requirements.txt")
+
         sys.exit(1)
         
     except FileNotFoundError as e:
         logger.critical(f"Required file not found: {e}")
         logger.critical("Verify model checkpoints and configuration files are present.")
+
         sys.exit(1)
         
     except ConnectionError as e:
         logger.critical(f"Network connection error: {e}")
         logger.critical("Check internet connectivity and Telegram API accessibility.")
+
         sys.exit(1)
         
     except Exception as e:
         logger.critical(f"Unexpected error: {e}", exc_info=True)
         logger.critical("Application crashed. Check logs for details.")
+
         sys.exit(1)
         
     finally:

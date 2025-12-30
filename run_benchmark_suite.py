@@ -628,7 +628,7 @@ def main():
         # Print summary
         print_summary(results_df, logger)
         
-        logger.info("\n✅ Benchmark completed successfully!")
+        logger.info("\nBenchmark completed successfully!")
         return 0
         
     except Exception as e:

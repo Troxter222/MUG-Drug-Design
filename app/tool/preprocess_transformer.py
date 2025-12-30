@@ -1,10 +1,8 @@
 """
-Molecular Universe Generator (MUG) - Data Preprocessing Pipeline
 Author: Ali (Troxter222)
+Project: MUG (Molecular Universe Generator)
+Date: 2025
 License: MIT
-
-Converts SMILES chemical notation to SELFIES representation and builds vocabulary
-for transformer-based molecular generation models.
 """
 
 import json

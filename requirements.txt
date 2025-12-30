@@ -9,3 +9,11 @@ python-dotenv
 pillow
 scipy
 tqdm
+ipython_genutils
+streamlit
+py3Dmol
+stmol
+pandas
+plotly
+matplotlib
+fpdf

@@ -1,9 +1,13 @@
 """
+Author: Ali (Troxter222)
+Project: MUG (Molecular Universe Generator)
+Date: 2025
+License: MIT
+
 Biology Service: Molecular Docking & Affinity Estimation
 Backend: Subprocess wrapper for AutoDock Vina.exe + Meeko
 """
 
-import os
 import json
 import logging
 import random
@@ -13,7 +17,7 @@ from pathlib import Path
 from rdkit import Chem
 from rdkit.Chem import AllChem, Descriptors, Lipinski
 
-# Meeko (только подготовка лиганда, без Vina bindings)
+# Meeko (Ligand preparation only, without Vina bindings)
 try:
     from meeko import MoleculePreparation
     MEEKO_AVAILABLE = True
@@ -22,23 +26,24 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+
 class BiologyService:
     # --- CONFIGURATION ---
     BASE_DIR = Path(__file__).resolve().parent.parent.parent
     VINA_PATH = BASE_DIR / "app" / "tool" / "vina.exe"
     
-    # 2. Путь к конфигам рецепторов
+    # Path to receptor configurations
     CONFIG_FILE = BASE_DIR / "data/receptors/targets_config.json"
 
     def __init__(self):
         self.targets = {}
         self._load_config()
         
-        # Проверяем доступность инструментов
+        # Check tool availability
         self.vina_ready = self.VINA_PATH.exists() and MEEKO_AVAILABLE
         
         if not self.VINA_PATH.exists():
-            logger.warning(f"⚠️ Vina.exe not found at {self.VINA_PATH}. Docking will use QSAR fallback.")
+            logger.warning(f"Warning: Vina.exe not found at {self.VINA_PATH}. Docking will use QSAR fallback.")
 
     def _load_config(self):
         if self.CONFIG_FILE.exists():
@@ -66,37 +71,38 @@ class BiologyService:
             return self._qsar_fallback(mol)
 
         try:
-            # --- 1. Подготовка Лиганда (RDKit -> PDBQT String) ---
+            # --- 1. Ligand Preparation (RDKit -> PDBQT String) ---
             mol_3d = Chem.AddHs(mol)
-            # Генерация 3D (попытка)
+            
+            # Attempt 3D generation
             if AllChem.EmbedMolecule(mol_3d, AllChem.ETKDGv3()) != 0:
-                return self._qsar_fallback(mol) # Не удалось сделать 3D
+                return self._qsar_fallback(mol) # Failed to generate conformation
 
             try:
                 AllChem.MMFFOptimizeMolecule(mol_3d)
             except Exception: 
                 pass
 
-            # Конвертация в формат PDBQT
+            # Convert to PDBQT format
             preparator = MoleculePreparation()
             preparator.prepare(mol_3d)
             ligand_pdbqt_string = preparator.write_pdbqt_string()
 
-            # --- 2. Запуск Vina через Subprocess ---
-            # Создаем временную папку, чтобы не мусорить файлами
+            # --- 2. Execute Vina via Subprocess ---
+            # Create a temporary directory to avoid file clutter
             with tempfile.TemporaryDirectory() as tmp_dir:
                 tmp_path = Path(tmp_dir)
                 ligand_file = tmp_path / "ligand.pdbqt"
                 out_file = tmp_path / "out.pdbqt"
                 log_file = tmp_path / "vina.log"
 
-                # Записываем лиганд
+                # Write ligand file
                 ligand_file.write_text(ligand_pdbqt_string)
 
                 center = target_conf["center"]
                 size = target_conf["size"]
 
-                # Формируем команду
+                # Construct command
                 cmd = [
                     str(self.VINA_PATH),
                     "--receptor", str(receptor_path),
@@ -107,28 +113,27 @@ class BiologyService:
                     "--size_x", str(size[0]),
                     "--size_y", str(size[1]),
                     "--size_z", str(size[2]),
-                    "--exhaustiveness", "4", # Быстрый режим
-                    "--num_modes", "1",      # Нам нужна только лучшая поза
-                    "--cpu", "1",            # 1 ядро на процесс (важно для многопоточности бота!)
+                    "--exhaustiveness", "4", # Fast mode
+                    "--num_modes", "1",      # Top pose only
+                    "--cpu", "1",            # 1 CPU core (important for bot concurrency)
                     "--out", str(out_file),
                     "--log", str(log_file)
                 ]
 
-                # Запускаем EXE (скрывая консольное окно в Windows если нужно, но subprocess.run обычно ок)
+                # Run executable
                 subprocess.run(
                     cmd,
-                    stdout=subprocess.DEVNULL, # Глушим вывод в консоль
+                    stdout=subprocess.DEVNULL, # Suppress console output
                     stderr=subprocess.DEVNULL,
                     check=True,
-                    timeout=30 # Тайм-аут 30 секунд, чтобы не висело
+                    timeout=30 # 30-second timeout to prevent hanging
                 )
 
-                # --- 3. Парсинг Лога ---
+                # --- 3. Log Parsing ---
                 affinity = self._parse_vina_log(log_file)
                 return affinity
 
         except Exception:
-            # logger.warning(f"Vina subprocess error: {e}")
             return self._qsar_fallback(mol)
 
     def _parse_vina_log(self, log_path: Path) -> float:
@@ -137,15 +142,15 @@ class BiologyService:
             with open(log_path, "r") as f:
                 start_reading = False
                 for line in f:
-                    # Ищем таблицу результатов. Она начинается после линии "-----+..."
+                    # Result table starts after the line "-----+..."
                     if "----+" in line:
                         start_reading = True
                         continue
                     
                     if start_reading:
                         parts = line.strip().split()
-                        # Первая строка после заголовка - это Mode 1 (лучший)
-                        # Формат:   1   -8.5   0.000   0.000
+                        # The first line after header is Mode 1 (Best)
+                        # Format:   1   -8.5   0.000   0.000
                         if len(parts) >= 2 and parts[0] == "1":
                             return float(parts[1])
         except Exception:
@@ -167,23 +172,26 @@ class BiologyService:
         mw = Descriptors.MolWt(mol)
         hb = Lipinski.NumHDonors(mol) + Lipinski.NumHAcceptors(mol)
         rot = Lipinski.NumRotatableBonds(mol)
-        # Формула: чем тяжелее, тем сильнее (-), но штраф за роторы и H-связи
+        
+        # Formula: Heavier implies stronger binding (-), 
+        # but penalty for rotors and H-bonds (entropy/desolvation)
         score = -5.0 - (mw / 100.0 * 0.9) + (rot * 0.05) + (hb * 0.05)
-        # Добавляем шум для реалистичности прокси
+        
+        # Add noise for realistic proxy behavior
         noisy_score = score + random.uniform(-0.3, 0.3)
         return round(max(-12.0, min(-3.0, noisy_score)), 2)
 
     @staticmethod
     def interpret_affinity(score: float) -> str:
         if score > -6.0: 
-            return "❌ Non-binder / Very Weak"
+            return "Non-binder / Very Weak"
         if score > -7.5: 
-            return "⚠️ Moderate Binder"
+            return "Moderate Binder"
         if score > -9.0: 
-            return "✅ Hit-like (Docking Score)"
+            return "Hit-like (Docking Score)"
         if score > -10.5: 
-            return "💎 Lead-like (High Affinity)"
-        return "🔥 Potent Inhibitor (Optimized)"
+            return "Lead-like (High Affinity)"
+        return "Potent Inhibitor (Optimized)"
 
     @staticmethod
     def get_confidence_level(score: float, similarity: float) -> str:

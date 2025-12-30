@@ -65,7 +65,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional
 
-import selfies  # type: ignore
+import selfies
 from tqdm import tqdm
 
 

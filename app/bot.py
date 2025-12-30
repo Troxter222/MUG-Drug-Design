@@ -26,6 +26,7 @@ from app.core.engine import MolecularVAE
 from app.core.transformer_model import MoleculeTransformer
 from app.core.vocab import Vocabulary
 from app.services.biology import BiologyService
+from app.services.reporting import ReportingService
 from app.services.chemistry import ChemistryService
 from app.services.linguistics import LinguisticsService
 from app.services.retrosynthesis import RetrosynthesisService
@@ -91,7 +92,7 @@ def load_model_instance(model_key: str, vocab: Vocabulary):
         logger.error(f"Checkpoint not found: {path}")
         return None
 
-    logger.info(f"🔄 Loading model: {conf['name']} ({conf['type']})...")
+    logger.info(f"Loading model: {conf['name']} ({conf['type']})...")
     
     try:
         state_dict = torch.load(path, map_location=Config.DEVICE)
@@ -138,7 +139,7 @@ def load_model_instance(model_key: str, vocab: Vocabulary):
 
         model.to(Config.DEVICE)
         model.eval()
-        logger.info(f"✅ Model '{conf['name']}' loaded successfully.")
+        logger.info(f"Model '{conf['name']}' loaded successfully.")
         return model
 
     except Exception as e:
@@ -151,10 +152,10 @@ def format_report(smiles, properties, target_info, affinity, similarity, recipe,
     # 1. Novelty Check
     is_novel, name, link = ChemistryService.check_novelty(smiles)
     if is_novel:
-        header = "🧪 **NOVEL ENTITY (AI-Generated)**"
+        header = "**NOVEL ENTITY (AI-Generated)**"
         scaffold_info = "Scaffold Novelty: **High**"
     else:
-        header = f"🌍 **KNOWN COMPOUND:** [{name}]({link})"
+        header = f"**KNOWN COMPOUND:** [{name}]({link})"
         scaffold_info = "Scaffold Novelty: **Low** (Known)"
 
     # 2. Target Information
@@ -162,7 +163,7 @@ def format_report(smiles, properties, target_info, affinity, similarity, recipe,
     if target_info:
         target_block = (
             f"━━━━━━━━━━━━━━━━━━\n"
-            f"🎯 **TARGET PROFILE**\n"
+            f"**TARGET PROFILE**\n"
             f"Target: `{target_info['target_name']}`\n"
             f"Class: _{target_info['target_class']}_\n"
         )
@@ -175,7 +176,7 @@ def format_report(smiles, properties, target_info, affinity, similarity, recipe,
         
         bio_block = (
             f"━━━━━━━━━━━━━━━━━━\n"
-            f"🧬 **DOCKING SIMULATION**\n"
+            f"**DOCKING SIMULATION**\n"
             f"Score: `{affinity} kcal/mol`\n"
             f"Verdict: {verdict}\n"
             f"Confidence: `{confidence}`\n"
@@ -192,7 +193,7 @@ def format_report(smiles, properties, target_info, affinity, similarity, recipe,
         f"State: _{properties['pka_type']}_\n"
         f"CNS Prob: `{properties['cns_prob']}`\n"
         f"QED: `{properties['qed']}`\n\n"
-        f"⚠️ **RISK ASSESSMENT**\n"
+        f"**RISK ASSESSMENT**\n"
         f"{properties['risk_profile']}\n"
         f"• {scaffold_info}\n"
     )
@@ -200,7 +201,7 @@ def format_report(smiles, properties, target_info, affinity, similarity, recipe,
     # 5. Synthesis
     synth_block = (
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"🏗 **SYNTHESIS**\n"
+        f"**SYNTHESIS**\n"
         f"{recipe}\n"
     )
 
@@ -244,7 +245,7 @@ class MolecularBot:
         self.deep_search_state = {} 
         
         self._register_handlers()
-        logger.info("🤖 MUG System Ready.")
+        logger.info("MUG System Ready.")
 
     def change_model(self, model_key: str) -> bool:
         """Hot-swap the active neural model."""
@@ -300,11 +301,11 @@ class MolecularBot:
                 # Merge Risks
                 full_risks = []
                 if cns_warnings: 
-                    full_risks.extend([f"⛔ {w}" for w in cns_warnings])
+                    full_risks.extend([f"{w}" for w in cns_warnings])
                 if ai_risks: 
                     full_risks.extend(ai_risks)
                 
-                props['risk_profile'] = "\n".join(full_risks) if full_risks else "✅ No AI-predicted risks"
+                props['risk_profile'] = "\n".join(full_risks) if full_risks else "No AI-predicted risks"
 
                 # 6. Scoring
                 score = -1000
@@ -345,7 +346,7 @@ class MolecularBot:
 
     def run_deep_search_worker(self, chat_id, target_info, target_cat):
         """Background worker loop for Deep Search."""
-        logger.info(f"🚀 Deep Search started for {chat_id}")
+        logger.info(f"Deep Search started for {chat_id}")
         
         target_fp = AllChem.GetMorganFingerprintAsBitVect(Chem.MolFromSmiles(target_info['ref']), 2, nBits=1024)
         batch_size = 50
@@ -375,7 +376,7 @@ class MolecularBot:
                     state['best_score'] = score
                     state['best_candidate'] = cand_data
                     
-            time.sleep(0.1) # Yield CPU
+            time.sleep(0.1)
 
     # --- HANDLERS ---
 
@@ -384,10 +385,10 @@ class MolecularBot:
         @self.bot.message_handler(commands=['start', 'help'])
         def handle_start(message):
             markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-            markup.row("🧬 Random Synthesis", "🎯 Targeted Design")
-            markup.row("⚙️ Change Model")
+            markup.row("Random Synthesis", "Targeted Design")
+            markup.row("Change Model")
             text = (
-                f"🌌 **MUG System v7.4**\n"
+                f"**MUG System v7.4**\n"
                 f"Core: `{Config.MODEL_REGISTRY[self.current_model_key]['name']}`\n"
                 f"Toxicity Engine: Active (12 models)\n\n"
                 "Select operation mode:"
@@ -395,13 +396,12 @@ class MolecularBot:
             self.bot.send_message(message.chat.id, text, parse_mode='Markdown', reply_markup=markup)
 
         # Model Switching
-        @self.bot.message_handler(func=lambda m: m.text == "⚙️ Change Model")
+        @self.bot.message_handler(func=lambda m: m.text == "Change Model")
         def handle_model_menu(message):
             markup = types.InlineKeyboardMarkup(row_width=1)
             for key, conf in Config.MODEL_REGISTRY.items():
-                active = "✅ " if key == self.current_model_key else ""
-                markup.add(types.InlineKeyboardButton(f"{active}{conf['name']}", callback_data=f"mdl_{key}"))
-            self.bot.send_message(message.chat.id, "💾 **Select Architecture:**", parse_mode='Markdown', reply_markup=markup)
+                markup.add(types.InlineKeyboardButton(f"{conf['name']}", callback_data=f"mdl_{key}"))
+            self.bot.send_message(message.chat.id, "**Select Architecture:**", parse_mode='Markdown', reply_markup=markup)
 
         @self.bot.callback_query_handler(func=lambda call: call.data.startswith("mdl_"))
         def callback_model_switch(call):
@@ -412,21 +412,21 @@ class MolecularBot:
             
             self.bot.answer_callback_query(call.id, "Loading weights...")
             if self.change_model(key):
-                self.bot.edit_message_text(f"✅ Loaded: `{Config.MODEL_REGISTRY[key]['name']}`", call.message.chat.id, call.message.message_id, parse_mode='Markdown')
+                self.bot.edit_message_text(f"Loaded: `{Config.MODEL_REGISTRY[key]['name']}`", call.message.chat.id, call.message.message_id, parse_mode='Markdown')
             else:
-                self.bot.edit_message_text("❌ Failed to load model.", call.message.chat.id, call.message.message_id)
+                self.bot.edit_message_text("Failed to load model.", call.message.chat.id, call.message.message_id)
 
         # Standard Modes
-        @self.bot.message_handler(func=lambda m: m.text == "🧬 Random Synthesis")
+        @self.bot.message_handler(func=lambda m: m.text == "Random Synthesis")
         def handle_random(message):
             self.execute_standard_pipeline(message.chat.id, mode="random")
 
-        @self.bot.message_handler(func=lambda m: m.text == "🎯 Targeted Design")
+        @self.bot.message_handler(func=lambda m: m.text == "Targeted Design")
         def handle_targeted(message):
             markup = types.InlineKeyboardMarkup(row_width=2)
             for key, value in Config.DISEASE_DB.items():
                 markup.add(types.InlineKeyboardButton(value['title'], callback_data=f"cat_{key}"))
-            self.bot.send_message(message.chat.id, "🔬 **Select Therapeutic Area:**", parse_mode='Markdown', reply_markup=markup)
+            self.bot.send_message(message.chat.id, "**Select Therapeutic Area:**", parse_mode='Markdown', reply_markup=markup)
 
         # Category Selection
         @self.bot.callback_query_handler(func=lambda call: call.data.startswith("cat_"))
@@ -435,7 +435,7 @@ class MolecularBot:
             markup = types.InlineKeyboardMarkup(row_width=2)
             for key, val in Config.DISEASE_DB[cat]['targets'].items():
                 markup.add(types.InlineKeyboardButton(val['target_name'], callback_data=f"tgt_{cat}_{key}"))
-            self.bot.edit_message_text(f"📂 **{Config.DISEASE_DB[cat]['title']}**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode='Markdown')
+            self.bot.edit_message_text(f"**{Config.DISEASE_DB[cat]['title']}**", call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode='Markdown')
 
         # Target Selection -> Search Mode
         @self.bot.callback_query_handler(func=lambda call: call.data.startswith("tgt_"))
@@ -445,12 +445,12 @@ class MolecularBot:
             
             markup = types.InlineKeyboardMarkup(row_width=1)
             markup.add(
-                types.InlineKeyboardButton("🔎 Normal Search (Fast)", callback_data=f"run_norm_{cat}_{dis}"),
-                types.InlineKeyboardButton("🚀 Deep Search (Infinite)", callback_data=f"run_deep_{cat}_{dis}")
+                types.InlineKeyboardButton("Normal Search (Fast)", callback_data=f"run_norm_{cat}_{dis}"),
+                types.InlineKeyboardButton("Deep Search (Infinite)", callback_data=f"run_deep_{cat}_{dis}")
             )
             
             self.bot.edit_message_text(
-                f"📡 **Target Locked:** {target['target_name']}\n"
+                f"**Target Locked:** {target['target_name']}\n"
                 f"Choose strategy:", 
                 call.message.chat.id, call.message.message_id, parse_mode='Markdown', reply_markup=markup
             )
@@ -462,7 +462,7 @@ class MolecularBot:
             target = Config.DISEASE_DB[cat]['targets'][dis]
             
             if mode == "norm":
-                self.bot.edit_message_text("⚙️ Running Standard Inference...", call.message.chat.id, call.message.message_id)
+                self.bot.edit_message_text("Running Standard Inference...", call.message.chat.id, call.message.message_id)
                 self.execute_standard_pipeline(call.message.chat.id, "targeted", target, cat)
             
             elif mode == "deep":
@@ -481,10 +481,10 @@ class MolecularBot:
                 t.start()
                 
                 markup = types.InlineKeyboardMarkup()
-                markup.add(types.InlineKeyboardButton("🛑 STOP & SHOW RESULT", callback_data="stop_deep"))
+                markup.add(types.InlineKeyboardButton("STOP & SHOW RESULT", callback_data="stop_deep"))
                 
                 self.bot.edit_message_text(
-                    f"🚀 **DEEP SEARCH ACTIVE**\n"
+                    f"**DEEP SEARCH ACTIVE**\n"
                     f"Target: `{target['target_name']}`\n\n"
                     f"AI is exploring chemical space indefinitely.\n"
                     f"Press STOP to retrieve the best candidate.",
@@ -498,7 +498,7 @@ class MolecularBot:
             if cid in self.deep_search_state and self.deep_search_state[cid]['active']:
                 self.deep_search_state[cid]['active'] = False
                 
-                self.bot.edit_message_text("🛑 Stopping... Analyzing results...", cid, call.message.message_id)
+                self.bot.edit_message_text("Stopping... Analyzing results...", cid, call.message.message_id)
                 time.sleep(1.5) # Allow thread to finish
                 
                 state = self.deep_search_state[cid]
@@ -510,43 +510,91 @@ class MolecularBot:
                         cid, 
                         cand, 
                         saved_target, 
-                        extra_text=f"🏁 **Deep Search Finished**\nScanned: {state['iterations']} molecules"
+                        extra_text=f"**Deep Search Finished**\nScanned: {state['iterations']} molecules"
                     )
                 else:
-                    self.bot.send_message(cid, "⚠️ Search stopped. No valid candidates found.")
+                    self.bot.send_message(cid, "Search stopped. No valid candidates found.")
             else:
                 self.bot.answer_callback_query(call.id, "No active search.")
 
-        # Actions (3D, Blocks, Rerun)
-        @self.bot.callback_query_handler(func=lambda call: call.data in ["get_recipe", "get_3d", "refresh_random"])
+        # Actions (3D, Blocks, Rerun, PDF)
+        @self.bot.callback_query_handler(func=lambda call: call.data in ["get_recipe", "get_3d", "refresh_random", "get_pdf"])
         def handle_actions(call):
             cid = call.message.chat.id
+            smi = self.session_cache.get(cid)
+            
+            if not smi:
+                self.bot.answer_callback_query(call.id, "Session expired. Please generate a new molecule.")
+                return
+
+            mol = Chem.MolFromSmiles(smi)
+            if not mol:
+                self.bot.answer_callback_query(call.id, "Error parsing molecule.")
+                return
+
             if call.data == "get_3d":
-                smi = self.session_cache.get(cid)
-                if smi:
-                    mol = Chem.MolFromSmiles(smi)
-                    mol = Chem.AddHs(mol)
-                    AllChem.EmbedMolecule(mol, AllChem.ETKDGv3())
-                    sio = io.StringIO()
-                    w = Chem.SDWriter(sio)
-                    w.write(mol)
-                    w.close()
-                    bio = io.BytesIO(sio.getvalue().encode('utf-8'))
-                    bio.name = 'structure.sdf'
-                    self.bot.send_document(cid, bio, caption="🧬 **3D Structure (SDF)**")
+                mol_3d = Chem.AddHs(mol)
+                AllChem.EmbedMolecule(mol_3d, AllChem.ETKDGv3())
+                sio = io.StringIO()
+                w = Chem.SDWriter(sio)
+                w.write(mol_3d)
+                w.close()
+                bio = io.BytesIO(sio.getvalue().encode('utf-8'))
+                bio.name = 'structure.sdf'
+                self.bot.send_document(cid, bio, caption="**3D Structure (SDF)**", parse_mode='Markdown')
+
             elif call.data == "get_recipe":
-                smi = self.session_cache.get(cid)
-                if smi:
-                    mol = Chem.MolFromSmiles(smi)
-                    blocks = RetrosynthesisService.get_building_blocks(mol)
-                    if blocks:
-                        img = Draw.MolsToGridImage([Chem.MolFromSmiles(b) for b in blocks], molsPerRow=len(blocks), subImgSize=(200,200))
-                        bio = io.BytesIO()
-                        img.save(bio, format='PNG')
-                        bio.seek(0)
-                        self.bot.send_photo(cid, bio, caption="🧱 **Building Blocks**")
-            elif "refresh" in call.data:
+                blocks = RetrosynthesisService.get_building_blocks(mol)
+                if blocks:
+                    mols = [Chem.MolFromSmiles(b) for b in blocks]
+                    img = Draw.MolsToGridImage(mols, molsPerRow=min(4, len(blocks)), subImgSize=(200, 200))
+                    bio = io.BytesIO()
+                    img.save(bio, format='PNG')
+                    bio.seek(0)
+                    self.bot.send_photo(cid, bio, caption="**Building Blocks (Retrosynthesis)**")
+                else:
+                    self.bot.answer_callback_query(call.id, "No simple precursors found.")
+
+            elif call.data == "refresh_random":
                 self.execute_standard_pipeline(cid, mode="random")
+
+            elif call.data == "get_pdf":
+                self.bot.send_chat_action(cid, 'upload_document')
+                
+                # Analyse again
+                props = ChemistryService.analyze_properties(mol)
+                aff = BiologyService().dock_molecule(mol, "unknown")
+                
+                # Save image for PDF
+                Config.CACHE_DIR.mkdir(parents=True, exist_ok=True)
+                img_path = Config.CACHE_DIR / f"{cid}_temp.png"
+                VisualizationService.draw_cyberpunk(mol).save(img_path)
+                
+                # Generate Text
+                blocks = RetrosynthesisService.get_building_blocks(mol)
+                complexity = RetrosynthesisService.assess_complexity(mol)
+                recipe = RetrosynthesisService.describe_synthesis(blocks, complexity)
+                
+                # Create PDF
+                pdf_filename = Config.CACHE_DIR / f"MUG_Report_{cid}.pdf"
+                
+                try:
+                    ReportingService.generate_pdf(
+                        mol_name=f"Candidate-{cid}",
+                        smiles=smi,
+                        props=props,
+                        affinity=aff,
+                        image_path=str(img_path),
+                        recipe=recipe,
+                        filename=str(pdf_filename)
+                    )
+                    
+                    with open(pdf_filename, 'rb') as f:
+                        self.bot.send_document(cid, f, caption="**Official Research Report**")
+                        
+                except Exception as e:
+                    logger.error(f"PDF Error: {e}")
+                    self.bot.send_message(cid, "Failed to generate PDF report.")
 
     def execute_standard_pipeline(self, chat_id, mode="random", target_info=None, target_cat=""):
         self.bot.send_chat_action(chat_id, 'upload_photo')
@@ -574,7 +622,8 @@ class MolecularBot:
             
             for score, c in cands:
                 if mode == "random":
-                    best_cand = c; break  # noqa: E702
+                    best_cand = c
+                    break
                 if score > best_score:
                     best_score = score
                     best_cand = c
@@ -585,7 +634,7 @@ class MolecularBot:
         if best_cand:
             self.send_final_report(chat_id, best_cand, target_info)
         else:
-            self.bot.send_message(chat_id, "⚠️ No viable candidates found.")
+            self.bot.send_message(chat_id, "No viable candidates found.")
 
     def send_final_report(self, chat_id, candidate, target_info, extra_text=""):
         mol, smi, props, aff, sim = candidate
@@ -608,9 +657,13 @@ class MolecularBot:
             report = f"{extra_text}\n\n{report}"
         
         markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton("🧱 Blocks", callback_data="get_recipe"), types.InlineKeyboardButton("📦 3D", callback_data="get_3d"))
+        markup.add(
+            types.InlineKeyboardButton("Blocks", callback_data="get_recipe"), 
+            types.InlineKeyboardButton("3D", callback_data="get_3d"),
+            types.InlineKeyboardButton("PDF Report", callback_data="get_pdf")
+        )
         if not target_info: 
-            markup.add(types.InlineKeyboardButton("🔄 Rerun", callback_data="refresh_random"))
+            markup.add(types.InlineKeyboardButton("Rerun", callback_data="refresh_random"))
         
         self.bot.send_photo(chat_id, bio, caption=report, parse_mode='Markdown', reply_markup=markup)
 

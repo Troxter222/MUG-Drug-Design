@@ -1,0 +1,27 @@
+cff-version: 1.2.0
+message: "If you use this software in your research, please cite it as below."
+type: software
+title: "MUG: Molecular Universe Generator — AI-Powered De Novo Drug Design Platform"
+version: 7.5.0
+date-released: 2025-12-30
+license: MIT
+url: "https://github.com/Troxter222/MUG-Drug-Design"
+repository-code: "https://github.com/Troxter222/MUG-Drug-Design"
+
+authors:
+  - family-names: "Sultonov"
+    given-names: "Ali"
+    alias: "Troxter222"
+
+keywords:
+  - drug-discovery
+  - artificial-intelligence
+  - transformer-vae
+  - reinforcement-learning
+  - cheminformatics
+  - molecular-docking
+
+abstract: >-
+  MUG (Molecular Universe Generator) is a framework for computational drug discovery that integrates
+  Transformer-based Variational Autoencoders with physics-inspired reinforcement learning to generate
+  novel, drug-like, and synthesizable molecular candidates conditioned on therapeutic targets.

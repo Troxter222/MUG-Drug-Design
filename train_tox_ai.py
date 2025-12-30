@@ -1,3 +1,12 @@
+"""
+Molecular Universe Generator (MUG) - Model Benchmark Suite
+Author: Ali (Troxter222)
+License: MIT
+
+Comprehensive evaluation framework for comparing molecular generation models.
+Tests validity, uniqueness, drug-likeness (QED), and toxicity metrics.
+"""
+
 import os
 import requests
 import gzip
@@ -62,34 +71,28 @@ def mol_to_fp(smiles):
 def train_suite():
     os.makedirs(SAVE_DIR, exist_ok=True)
     df = download_data()
-    
-    # 1. Подготовка фичей (Fingerprints)
-    print("🧬 Vectorizing Molecules (Fingerprints)...")
+
+    print("Vectorizing Molecules (Fingerprints)...")
     valid_data = []
     
     for idx, row in tqdm(df.iterrows(), total=len(df)):
         fp = mol_to_fp(row['smiles'])
         if fp is not None:
-            # Сохраняем fp и метки
             entry = {'fp': fp}
             for t in TASKS: 
                 entry[t] = row[t]
             valid_data.append(entry)
             
-    print(f"✅ Valid molecules: {len(valid_data)}")
+    print(f"Valid molecules: {len(valid_data)}")
     
-    # Превращаем в матрицы
     X_all = np.array([d['fp'] for d in valid_data])
     
-    # 2. Обучение моделей по каждой задаче
-    print("\n🚀 Training 12 AI-Toxicologists...")
+    print("\nTraining 12 AI-Toxicologists...")
     scores = {}
     
     for task in TASKS:
-        # Берем только те строки, где есть метка (не NaN)
         y_data = [d[task] for d in valid_data]
         
-        # Фильтруем NaN
         X_task = []
         y_task = []
         for x, y in zip(X_all, y_data):
@@ -115,13 +118,13 @@ def train_suite():
             auc = 0.5
         
         scores[task] = auc
-        print(f"  • {task:<15} AUC: {auc:.3f} {'✅' if auc > 0.7 else '⚠️'}")
+        print(f"  {task:<15} AUC: {auc:.3f}")
         
         # Save
         joblib.dump(clf, f"{SAVE_DIR}/{task}.pkl")
 
-    print("\n💾 All models saved to data/models/tox21/")
-    print(f"🏆 Average AUC: {np.mean(list(scores.values())):.3f}")
+    print("\nAll models saved to data/models/tox21/")
+    print(f"Average AUC: {np.mean(list(scores.values())):.3f}")
 
 if __name__ == "__main__":
     train_suite()

@@ -5,20 +5,17 @@ from rdkit import Chem
 from rdkit import RDLogger
 from tqdm import tqdm
 
-# ===== Настройки =====
 INPUT_PATTERN = "tmp_*.txt"
 OUT_FILE = "dataset/processed/transformer_train_v2.csv"
 
-# Сделай максимально мягкие фильтры, чтобы не терять данные
 MIN_LEN = 1
 MAX_LEN = 1000
 
 CANONICALIZE = True
 
-# сколько строк взять для авто-определения колонки
 SNIFF_LINES = 5000
 
-RDLogger.DisableLog("rdApp.*")  # чтобы не спамило "SMILES Parse Error"
+RDLogger.DisableLog("rdApp.*")
 
 
 def is_valid_smiles(s: str) -> bool:
@@ -29,9 +26,6 @@ def is_valid_smiles(s: str) -> bool:
 
 
 def sniff_smiles_column(file_path: str, sniff_lines: int = 5000) -> int:
-    """
-    Определяет индекс колонки (0,1,2,...) где чаще всего встречается валидный SMILES.
-    """
     valid_counts = {}   # col_idx -> valid
     total_counts = {}   # col_idx -> seen
 
@@ -51,8 +45,7 @@ def sniff_smiles_column(file_path: str, sniff_lines: int = 5000) -> int:
             if len(parts) == 0:
                 continue
 
-            # пробуем все колонки, которые есть в строке
-            for i, tok in enumerate(parts[:10]):  # ограничим до первых 10 колонок
+            for i, tok in enumerate(parts[:10]):
                 total_counts[i] = total_counts.get(i, 0) + 1
                 if is_valid_smiles(tok):
                     valid_counts[i] = valid_counts.get(i, 0) + 1
@@ -62,7 +55,6 @@ def sniff_smiles_column(file_path: str, sniff_lines: int = 5000) -> int:
     if not total_counts:
         return 0
 
-    # выбираем колонку с максимальной долей валидных
     best_i = 0
     best_ratio = -1.0
     for i in total_counts:
@@ -73,23 +65,23 @@ def sniff_smiles_column(file_path: str, sniff_lines: int = 5000) -> int:
             best_ratio = ratio
             best_i = i
 
-    print("🔎 Auto-detect SMILES column:")
+    print("Auto-detect SMILES column:")
     for i in sorted(total_counts):
         v = valid_counts.get(i, 0)
         t = total_counts[i]
         print(f"  col[{i}]: valid {v}/{t} = {100*v/t:.2f}%")
 
-    print(f"✅ Selected column index: {best_i}")
+    print(f"Selected column index: {best_i}")
     return best_i
 
 
 def main():
     files = sorted(glob.glob(INPUT_PATTERN))
     if not files:
-        print("❌ Файлы tmp_*.txt не найдены!")
+        print("Файлы tmp_*.txt не найдены!")
         return
 
-    print(f"📂 Найдено файлов: {len(files)}")
+    print(f"Найдено файлов: {len(files)}")
 
     os.makedirs(os.path.dirname(OUT_FILE), exist_ok=True)
 
@@ -105,7 +97,7 @@ def main():
         writer.writerow(["smiles"])
 
         for fp in files:
-            print(f"\n📄 File: {fp}")
+            print(f"\nFile: {fp}")
             smiles_col = sniff_smiles_column(fp, SNIFF_LINES)
 
             with open(fp, "r", encoding="utf-8", errors="ignore") as f:
@@ -150,7 +142,7 @@ def main():
     print(f"Dropped too long:       {too_long}")
     print(f"RDKit invalid:          {rdkit_invalid}")
     print(f"RDKit valid (written):  {rdkit_valid}")
-    print(f"\n🎉 CSV saved to: {OUT_FILE}")
+    print(f"\nCSV saved to: {OUT_FILE}")
 
 
 if __name__ == "__main__":
