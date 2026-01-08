@@ -57,6 +57,24 @@ The transition from GRU (v1) to Transformer (v2/v3) combined with Physics-Guided
 
 ---
 
+## 🛠️ Development & Testing
+
+To ensure the stability of the neural architecture and chemical validation logic, unit tests are provided.
+
+### Running Tests
+Execute the test suite from the root directory:
+
+```bash
+python run_tests.py
+```
+
+The suite covers:
+*   **Chemistry Engine:** Validation of RDKit property calculations and CNS rules.
+*   **Vocabulary:** Tokenization consistency and special token handling.
+*   **Transformer VAE:** Tensor shape integrity checks during forward pass and sampling.
+
+---
+
 ## 🚀 Installation & Setup
 
 *Note: Pre-trained models (.pth) and processed datasets are private. This repository contains the source code for the training and inference architecture.*

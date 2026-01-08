@@ -12,12 +12,6 @@ class Vocabulary:
     """Lightweight vocabulary handler for SELFIES tokenization."""
     
     def __init__(self, vocab_list: List[str]):
-        """
-        Initialize vocabulary from token list.
-        
-        Args:
-            vocab_list: List of vocabulary tokens including special tokens
-        """
         self.vocab = vocab_list
         self.char2idx = {token: idx for idx, token in enumerate(self.vocab)}
         self.idx2char = {idx: token for idx, token in enumerate(self.vocab)}
@@ -28,19 +22,11 @@ class Vocabulary:
         self.eos_idx = self.char2idx.get('<eos>', 2)
     
     def __len__(self) -> int:
-        """Return vocabulary size."""
         return len(self.vocab)
     
     def encode(self, selfies_str: str, max_len: int = 100) -> List[int]:
         """
         Encode SELFIES string to indices.
-        
-        Args:
-            selfies_str: SELFIES molecular representation
-            max_len: Maximum sequence length
-            
-        Returns:
-            List of token indices with padding
         """
         try:
             tokens = list(sf.split_selfies(selfies_str))
@@ -58,22 +44,24 @@ class Vocabulary:
         
         return indices[:max_len]
     
+    def batch_encode(self, selfies_list: List[str], max_len: int = 100) -> torch.Tensor:
+        """
+        Encodes a list of SELFIES strings into a tensor.
+        Required for unit testing and batch processing.
+        """
+        encoded_data = [self.encode(s, max_len) for s in selfies_list]
+        return torch.tensor(encoded_data, dtype=torch.long)
+    
     def decode(self, indices: Union[List[int], torch.Tensor]) -> str:
         """
         Decode indices back to SELFIES string.
-        
-        Args:
-            indices: Token indices (list or tensor)
-            
-        Returns:
-            SELFIES string representation
         """
         tokens = []
         
-        for i in indices:
-            # Convert tensor to int if needed
-            idx = i.item() if torch.is_tensor(i) else i
-            
+        # Handle single list or tensor row
+        iterable = indices.tolist() if torch.is_tensor(indices) else indices
+
+        for idx in iterable:
             # Skip invalid indices
             if idx not in self.idx2char:
                 continue
