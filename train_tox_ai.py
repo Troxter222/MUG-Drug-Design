@@ -25,13 +25,11 @@ DATA_URL = "https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/tox21.csv.g
 SAVE_DIR = "data/models/tox21"
 DATA_FILE = "dataset/raw/tox21.csv.gz"
 
-# 12 ключевых задач Tox21
 TASKS = [
     'NR-AR', 'NR-AR-LBD', 'NR-AhR', 'NR-Aromatase', 'NR-ER', 'NR-ER-LBD', 
     'NR-PPAR-gamma', 'SR-ARE', 'SR-ATAD5', 'SR-HSE', 'SR-MMP', 'SR-p53'
 ]
 
-# Человекочитаемые названия
 TASK_NAMES = {
     'NR-AR': 'Androgen Receptor (Hormonal)',
     'NR-AhR': 'AhR (Toxin Response)',
@@ -106,7 +104,6 @@ def train_suite():
         # Train/Test Split
         X_train, X_test, y_train, y_test = train_test_split(X_task, y_task, test_size=0.1, random_state=42)
         
-        # Model: Random Forest (Быстрый, мощный, не переобучается)
         clf = RandomForestClassifier(n_estimators=100, n_jobs=-1, max_depth=20, random_state=42)
         clf.fit(X_train, y_train)
         

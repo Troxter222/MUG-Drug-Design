@@ -64,3 +64,4 @@ benchmark_results/
 # --- Specific Training Artifacts ---
 *_stats.json
 tmp_*.txt
+benchmark_full_results.csv

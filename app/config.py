@@ -83,51 +83,192 @@ class Config:
     # ========================
 
     MODEL_REGISTRY: Dict[str, Any] = {
-        "rl_neuro_v2": {
-            "name": "Neuro-Hunter V2 (RL Optimized 'BEST')",
-            "path": "checkpoints_rl_finetuned/mug_rl_neuro_v2.pth",
-            "type": "transformer",
-            "vocab": "dataset/processed/vocab_transformer.json",
-            "params": {"embed": 256, "hidden": 1024, "layers": 4, "nhead": 8}
+    "gnn_tox": {
+        "name": "gnn_tox",
+        "path": "data/checkpoints/gnn_tox_v1.pth",
+        "type": "transformer",
+        "vocab": "dataset/processed/vocab_transformer.json",
+        "params": {
+            "embed": 64,
+            "hidden": 256,
+            "layers": 3,
+            "latent": 128
+        }
+    },
+    # --- Специализированные модели (Specialists) ---
+    "alzheimer (V1)": {
+        "name": "Alzheimer (V1)",
+        "path": "checkpoints_specialists/alzheimer/final_alzheimer.pth",
+        "type": "transformer",
+        "vocab": "dataset/processed/vocab_transformer.json",
+        "params": {
+            "embed": 256,
+            "nhead": 8,
+            "enc_layers": 4,
+            "dec_layers": 4,
+            "hidden": 1024,
+            "latent": 128
         },
-        "trans_rl_best": {
-            "name": "Transformer RL",
-            "path": "checkpoints_rl_transformer/mug_transformer_rl_best.pth",
-            "type": "transformer",
-            "vocab": "dataset/processed/vocab_transformer.json",
-            "params": {"embed": 256, "hidden": 1024, "layers": 4, "nhead": 8}
+    },
+    "alzheimer (V2)": {
+        "name": "Alzheimer (V2)",
+        "path": "checkpoints_specialists/alzheimer_v2/final_alzheimer.pth",
+        "type": "transformer",
+        "vocab": "dataset/processed/vocab_transformer.json",
+        "params": {
+            "embed": 256,
+            "nhead": 8,
+            "enc_layers": 4,
+            "dec_layers": 4,
+            "hidden": 1024,
+            "latent": 128
         },
-        "trans_v2": {
-            "name": "Transformer V2 (Epoch 11)",
-            "path": "checkpoints_transformer_v2/mug_trans_v2_ep11.pth",
-            "type": "transformer",
-            "vocab": "dataset/processed/vocab_transformer.json",
-            "params": {"embed": 256, "hidden": 1024, "layers": 4, "nhead": 8}
+    },
+    "covid (V1)": {
+        "name": "Covid (V1)",
+        "path": "checkpoints_specialists/covid/final_covid.pth",
+        "type": "transformer",
+        "vocab": "dataset/processed/vocab_transformer.json",
+        "params": {
+            "embed": 256,
+            "nhead": 8,
+            "enc_layers": 4,
+            "dec_layers": 4,
+            "hidden": 1024,
+            "latent": 128
         },
-        "mug_universal_v1": {
-            "name": "Mug Universal",
-            "path": "checkpoints_rl_universal/mug_universal_v1.pth",
-            "type": "transformer",
-            "vocab": "dataset/processed/vocab_transformer.json",
-            "params": {"embed": 256, "hidden": 1024, "layers": 4, "nhead": 8}
+    },
+    "egfr": {
+        "name": "Egfr Specialist",
+        "path": "checkpoints_specialists/egfr/final_egfr.pth",
+        "type": "transformer",
+        "vocab": "dataset/processed/vocab_transformer.json",
+        "params": {
+            "embed": 256,
+            "nhead": 8,
+            "enc_layers": 4,
+            "dec_layers": 4,
+            "hidden": 1024,
+            "latent": 128
         },
-        "gru_base": {
-            "name": "GRU Base (Legacy)",
-            "path": "data/checkpoints_selfies/mug_selfies_epoch_10.pth",
-            "type": "gru",
-            "vocab": "dataset/processed/vocab_transformer.json",
-            "params": {"embed": 64, "hidden": 256, "layers": 3, "latent": 128} 
-        },
-        "gru_rl": {
-            "name": "GRU RL (Legacy)",
-            "path": "data/checkpoints_rl/mug_rl_best.pth",
-            "type": "gru",
-            "vocab": "dataset/processed/vocab_transformer.json",
-            "params": {"embed": 64, "hidden": 256, "layers": 3, "latent": 128}
-        },
-    }
+    },
 
-    CURRENT_MODEL_KEY = "rl_neuro_v2"
+    # --- RL Оптимизированные (Reinforcement Learning) ---
+    "vina_rl_v2": {
+        "name": "Vina RL (BEST)",
+        "path": "checkpoints_vina_final/mug_vina_step200.pth",
+        "type": "transformer",
+        "vocab": "dataset/processed/vocab_transformer.json",
+        "params": {
+            "embed": 256,
+            "nhead": 8,
+            "enc_layers": 4,
+            "dec_layers": 4,
+            "hidden": 1024,
+            "latent": 128
+        },
+    },
+    "vina_rl_v1": {
+        "name": "Vina RL Optimized (EGFR)",
+        "path": "checkpoints_vina_egfr/mug_egfr_final.pth",
+        "type": "transformer",
+        "vocab": "dataset/processed/vocab_transformer.json",
+        "params": {
+            "embed": 256,
+            "nhead": 8,
+            "enc_layers": 4,
+            "dec_layers": 4,
+            "hidden": 1024,
+            "latent": 128
+        },
+    },
+    "rl_neuro_v2": {
+        "name": "Neuro-Hunter V2 (RL Optimized)",
+        "path": "checkpoints_rl_finetuned/mug_rl_neuro_v2.pth",
+        "type": "transformer",
+        "vocab": "dataset/processed/vocab_transformer.json",
+        "params": {
+            "embed": 256,
+            "nhead": 8,
+            "enc_layers": 4,
+            "dec_layers": 4,
+            "hidden": 1024,
+            "latent": 128
+        }
+    },
+    "trans_rl_best": {
+        "name": "Transformer RL (General)",
+        "path": "checkpoints_rl_transformer/mug_transformer_rl_best.pth",
+        "type": "transformer",
+        "vocab": "dataset/processed/vocab_transformer.json",
+        "params": {
+            "embed": 256,
+            "nhead": 8,
+            "enc_layers": 4,
+            "dec_layers": 4,
+            "hidden": 1024,
+            "latent": 128
+        }
+    },
+
+    # --- Универсальные / Базовые модели ---
+    "trans_v2": {
+        "name": "Transformer V2 (Epoch 11)",
+        "path": "checkpoints_transformer_v2/mug_trans_v2_ep11.pth",
+        "type": "transformer",
+        "vocab": "dataset/processed/vocab_transformer.json",
+        "params": {
+            "embed": 256,
+            "nhead": 8,
+            "enc_layers": 4,
+            "dec_layers": 4,
+            "hidden": 1024,
+            "latent": 128
+        }
+    },
+    "mug_universal_v1": {
+        "name": "Mug Universal",
+        "path": "checkpoints_rl_universal/mug_universal_v1.pth",
+        "type": "transformer",
+        "vocab": "dataset/processed/vocab_transformer.json",
+        "params": {
+            "embed": 256,
+            "nhead": 8,
+            "enc_layers": 4,
+            "dec_layers": 4,
+            "hidden": 1024,
+            "latent": 128
+        }
+    },
+
+    # --- Legacy (GRU/RNN) ---
+    "gru_base": {
+        "name": "GRU Base (Legacy)",
+        "path": "data/checkpoints_selfies/mug_selfies_epoch_10.pth",
+        "type": "gru",
+        "vocab": "dataset/processed/vocab_transformer.json",
+        "params": {
+            "embed": 64,
+            "hidden": 256,
+            "layers": 3,
+            "latent": 128
+        }
+    },
+    "gru_rl": {
+        "name": "GRU RL (Legacy)",
+        "path": "data/checkpoints_rl/mug_rl_best.pth",
+        "type": "gru",
+        "vocab": "dataset/processed/vocab_transformer.json",
+        "params": {
+            "embed": 64,
+            "hidden": 256,
+            "layers": 3,
+            "latent": 128
+        }
+    },
+}
+
+    CURRENT_MODEL_KEY = "vina_rl_v2"
     
     MODEL_FILENAME: str = MODEL_REGISTRY[CURRENT_MODEL_KEY]["path"]
     CHECKPOINT_PATH: Path = BASE_DIR / MODEL_FILENAME

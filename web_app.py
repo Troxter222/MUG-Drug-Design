@@ -235,11 +235,17 @@ def create_radar_chart(props, affinity_norm=0.5):
     )
     return fig
 
-def evaluate_batch_process(seqs, vocab, target_data, tox_service):
+def evaluate_batch_process(seqs, vocab, target_data, tox_service, seen_smiles=None):
     """
     Process a batch of sequences and return a dataframe of results.
+    Args:
+        seen_smiles (set): Set of SMILES strings already generated to deduplicate against.
     """
     valid_mols = []
+    
+    # Initialize tracking if not provided
+    if seen_smiles is None:
+        seen_smiles = set()
     
     target_fp = None
     target_cat = "unknown"
@@ -254,6 +260,13 @@ def evaluate_batch_process(seqs, vocab, target_data, tox_service):
             smi = sf.decoder(vocab.decode(seq))
             if not smi: 
                 continue
+                
+            # --- DEDUPLICATION ---
+            if smi in seen_smiles:
+                continue
+            seen_smiles.add(smi)
+            # ---------------------
+            
             mol = Chem.MolFromSmiles(smi)
             if not mol: 
                 continue
@@ -362,6 +375,9 @@ if 'best_candidate' not in st.session_state:
     st.session_state.best_candidate = None
 if 'scanned_total' not in st.session_state:
     st.session_state.scanned_total = 0
+# HISTORY TRACKING FOR DEDUPLICATION
+if 'global_smiles_history' not in st.session_state:
+    st.session_state.global_smiles_history = set()
 
 # --- MODE: BATCH ---
 if mode == "BATCH SYNTHESIS":
@@ -380,17 +396,20 @@ if mode == "BATCH SYNTHESIS":
             # Generate
             indices = model.sample(count, Config.DEVICE, vocab, max_len=max_len, temperature=temp)
             
-            # Evaluate
-            results = evaluate_batch_process(indices.cpu().numpy(), vocab, target_data, tox_service)
+            # Evaluate - Use a fresh set for this batch to ensure diversity WITHIN the batch
+            # but we don't necessarily need to block repeats from previous runs unless requested.
+            # For "Batch Synthesis", a local unique check is usually sufficient.
+            batch_seen = set()
+            results = evaluate_batch_process(indices.cpu().numpy(), vocab, target_data, tox_service, seen_smiles=batch_seen)
             
             duration = time.time() - start_time
             
             if results:
                 st.session_state.last_batch = results
                 st.session_state.history.extend(results)
-                st.success(f"Synthesis Complete. {len(results)} valid candidates generated in {duration:.2f}s.")
+                st.success(f"Synthesis Complete. {len(results)} valid unique candidates generated in {duration:.2f}s.")
             else:
-                st.error("No chemically valid molecules found. Try adjusting temperature.")
+                st.error("No valid unique molecules found. Try adjusting temperature.")
 
     # Results Display
     if 'last_batch' in st.session_state:
@@ -515,7 +534,15 @@ else:
     if st.session_state.deep_running:
         # Generate micro-batch
         indices = model.sample(10, Config.DEVICE, vocab, max_len=100, temperature=0.9)
-        batch_results = evaluate_batch_process(indices.cpu().numpy(), vocab, target_data, tox_service)
+        
+        # Pass GLOBAL history for deduplication
+        batch_results = evaluate_batch_process(
+            indices.cpu().numpy(), 
+            vocab, 
+            target_data, 
+            tox_service, 
+            seen_smiles=st.session_state.global_smiles_history
+        )
         
         st.session_state.scanned_total += 10
         
@@ -542,7 +569,7 @@ else:
         if bp:
             mol_display.image(VisualizationService.draw_cyberpunk(bp['mol']), caption=bp['smiles'])
             
-        status_text.info("System Active. Mining latent space...")
+        status_text.info(f"System Active. Mining latent space... Unique Molecules: {len(st.session_state.global_smiles_history)}")
         time.sleep(0.1)
         st.rerun()
     else:

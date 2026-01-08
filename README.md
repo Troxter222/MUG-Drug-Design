@@ -36,13 +36,13 @@ MUG represents a closed-loop drug discovery pipeline designed to generate valid,
 
 The transition from GRU (v1) to Transformer (v2/v3) combined with Physics-Guided RL showed significant improvements:
 
-| Metric | GRU Baseline | Transformer V2 (RL) | Improvement |
+| Rank | Model / Approach | Strength | Weakness |
 | :--- | :--- | :--- | :--- |
-| **Validity** | 94.5% | **100.0%** | +5.5% (via SELFIES) |
-| **Uniqueness** | 88.0% | **100.0%** | No mode collapse |
-| **Binding Affinity** | -6.2 kcal/mol | **-9.8 kcal/mol** | **Significant** |
-| **Drug-Likeness (QED)** | 0.45 | **0.86** | High quality |
-| **Toxicity Rate** | 15.2% | **0.0%** | Safe candidates |
+| 🥇 | **Graph-based GA (Competitor)** | Extreme Affinity (-9.0+) | Low QED, poor synthesizability |
+| 🥈 | **MUG: final_alzheimer (Ours)** | **Perfect Balance (QED+Docking)** | Not the absolute highest affinity |
+| 🥉 | **REINVENT 3.0 (Competitor)** | Reliability | Aging architecture (RNN) |
+| 4 | **MUG: gnn_tox_v1 (Legacy)** | Powerful Docking | High Toxicity (Deprioritized) |
+| 5 | **GENTRL (Competitor)** | Structural Novelty | Difficult reproducibility |
 
 ---
 
