@@ -1,4 +1,9 @@
-# 🌌 MUG: Molecular Universe Generator (v7.5)
+import os
+
+# --- БЕЗОПАСНАЯ ГЕНЕРАЦИЯ (без тройных кавычек в тексте) ---
+cb = chr(96) * 3  
+
+readme_content = f"""# 🌌 MUG: Molecular Universe Generator (v7.5)
 
 [![Status](https://img.shields.io/badge/Status-Active_Research-success)]()
 [![Architecture](https://img.shields.io/badge/Architecture-Transformer_VAE-blueviolet)]()
@@ -31,13 +36,13 @@ Performance analysis based on `benchmark_full_results.csv`. We prioritize realis
 
 ### 📉 Generation Stats (From CSV)
 
-```mermaid
+{cb}mermaid
 pie
     title MUG Generated Candidates Distribution
     "High QED (>0.7) & Binder" : 65
     "Medium QED" : 25
     "Toxic / Rejected" : 10
-```
+{cb}
 
 ---
 
@@ -59,10 +64,10 @@ Based on the provided benchmark logs, these are the key models:
 
 MUG represents a closed-loop drug discovery pipeline:
 
-```mermaid
+{cb}mermaid
 graph TD
     A[Target Input] -->|PDBQT| B(Generator: Transformer);
-    B -->|SELFIES| C{Evaluator};
+    B -->|SELFIES| C{{Evaluator}};
     C -->|Calculate| D[QED & SA Score];
     C -->|Simulate| E[AutoDock Vina];
     C -->|Inference| F[GNN Toxicity Filter];
@@ -70,7 +75,7 @@ graph TD
     E --> G;
     F --> G;
     G -->|PPO Step| B;
-```
+{cb}
 
 ### 1. Generator
 *   **Model:** Transformer VAE (Pre-LN).
@@ -81,7 +86,7 @@ graph TD
 *   **Toxicity Guard:** 12 GNN models trained on Tox21 dataset to penalize risky structures.
 
 ### 3. Objective Function
-$$ Score = (\text{Affinity} \times 5.0) + (\text{QED} \times 2.0) - (\text{Toxicity} \times 10.0) $$
+$$ Score = (\\text{{Affinity}} \\times 5.0) + (\\text{{QED}} \\times 2.0) - (\\text{{Toxicity}} \\times 10.0) $$
 
 ---
 
@@ -90,29 +95,29 @@ $$ Score = (\text{Affinity} \times 5.0) + (\text{QED} \times 2.0) - (\text{Toxic
 ### 1. Run Benchmarks
 To reproduce the CSV results:
 
-```bash
+{cb}bash
 python run_benchmark_suite.py
-```
+{cb}
 
 ### 2. Deep Search Mode (Web App)
 Launch the dashboard to visualize 3D structures and run the genetic loop:
 
-```bash
+{cb}bash
 streamlit run web_app.py
-```
+{cb}
 
 ### 3. Telegram Bot
 For remote monitoring:
 
-```bash
+{cb}bash
 python run.py
-```
+{cb}
 
 ---
 
 ## 📂 Project Structure
 
-```bash
+{cb}bash
 MUG/
 ├── app/
 │   ├── core/           # Transformer & VAE Models
@@ -123,7 +128,7 @@ MUG/
 ├── benchmark_results/  # Full CSV results
 ├── tests/              # Unit Tests
 └── requirements.txt    # Python dependencies
-```
+{cb}
 
 ## ⚖️ Disclaimer
 
@@ -134,3 +139,16 @@ This software is for **computational research only**. Generated structures are t
 
 ---
 *Copyright © 2025. Troxter222. All Rights Reserved.*
+"""
+
+def create_honest_readme():
+    file_path = "README.md"
+    try:
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(readme_content)
+        print(f"✅ README.md updated with HONEST metrics from benchmark_full_results.csv")
+    except Exception as e:
+        print(f"❌ Error: {e}")
+
+if __name__ == "__main__":
+    create_honest_readme()
