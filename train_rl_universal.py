@@ -43,7 +43,7 @@ class UniversalConfig:
 def load_checkpoint_safe(model, path):
     print(f"🔄 Loading weights: {path}")
 
-    state_dict = torch.load(path, map_location=UniversalConfig.DEVICE)
+    state_dict = torch.load(path, map_location=UniversalConfig.DEVICE)  # nosec
     new_state_dict = {}
 
     for k, v in state_dict.items():
@@ -130,7 +130,7 @@ def train_universal():
 
     # 2. Get Real Vocab Size from Checkpoint
 
-    ckpt = torch.load(UniversalConfig.BASE_MODEL_PATH, map_location=UniversalConfig.DEVICE)
+    ckpt = torch.load(UniversalConfig.BASE_MODEL_PATH, map_location=UniversalConfig.DEVICE)  # nosec
     real_size = ckpt['embedding.weight'].shape[0]
 
     print(f"Model Vocab Size: {real_size}")

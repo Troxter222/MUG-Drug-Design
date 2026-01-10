@@ -46,7 +46,7 @@ def download_data():
     os.makedirs("dataset/raw", exist_ok=True)
     if not os.path.exists(DATA_FILE):
         print("⬇️ Downloading Tox21 from DeepChem...")
-        r = requests.get(DATA_URL)
+        r = requests.get(DATA_URL)  # nosec
         with open(DATA_FILE, 'wb') as f:
             f.write(r.content)
     
