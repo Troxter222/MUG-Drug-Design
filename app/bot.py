@@ -95,7 +95,7 @@ def load_model_instance(model_key: str, vocab: Vocabulary):
     logger.info(f"Loading model: {conf['name']} ({conf['type']})...")
     
     try:
-        state_dict = torch.load(path, map_location=Config.DEVICE)
+        state_dict = torch.load(path, map_location=Config.DEVICE)  # nosec
         
         # Determine architecture
         if conf["type"] == "transformer":

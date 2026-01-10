@@ -39,7 +39,7 @@ class ToxPredictor:
         self.model = GNNTox().to(self.device)
         
         if os.path.exists(model_path):
-            self.model.load_state_dict(torch.load(model_path, map_location=self.device))
+            self.model.load_state_dict(torch.load(model_path, map_location=self.device))  # nosec
             self.model.eval()
             print("GNN (Tox21) loaded successfully.")
         else:

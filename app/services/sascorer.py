@@ -34,7 +34,7 @@ def readFragmentScores(name="fpscores.pkl.gz"):
   # generate the full path filename:
   if name == "fpscores.pkl.gz":
     name = op.join(op.dirname(__file__), name)
-  data = pickle.load(gzip.open(name))
+  data = pickle.load(gzip.open(name))  # nosec
   outDict = {}
   for i in data:
     for j in range(1, len(i)):

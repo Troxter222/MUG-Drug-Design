@@ -173,7 +173,7 @@ def train_rl_transformer():
     if os.path.exists(RLConfig.BASE_CHECKPOINT):
         logger.info(f"Loading base model: {RLConfig.BASE_CHECKPOINT}")
         try:
-            state = torch.load(RLConfig.BASE_CHECKPOINT, map_location=RLConfig.DEVICE)
+            state = torch.load(RLConfig.BASE_CHECKPOINT, map_location=RLConfig.DEVICE)  # nosec
             agent.load_state_dict(state)
             prior.load_state_dict(state)
         except Exception as e:

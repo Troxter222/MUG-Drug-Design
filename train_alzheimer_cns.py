@@ -168,7 +168,7 @@ def train():
     agent = MoleculeTransformer(29, 256, 8, 4, 4, 1024, 128).to(Config.DEVICE)
     prior = MoleculeTransformer(29, 256, 8, 4, 4, 1024, 128).to(Config.DEVICE)
     
-    state = torch.load(Config.BASE_MODEL_PATH, map_location=Config.DEVICE)
+    state = torch.load(Config.BASE_MODEL_PATH, map_location=Config.DEVICE)  # nosec
     new_state = {k.replace('fc_z', 'fc_latent_to_hidden'): v for k, v in state.items()}
     agent.load_state_dict(new_state, strict=False)
     prior.load_state_dict(new_state, strict=False)

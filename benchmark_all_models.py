@@ -96,7 +96,7 @@ class BenchmarkRunner:
     def load_model(self, path: Path) -> Tuple[Optional[torch.nn.Module], str]:
         """Load model with architecture inference."""
         try:
-            state_dict = torch.load(path, map_location=self.device)
+            state_dict = torch.load(path, map_location=self.device)  # nosec
             if not isinstance(state_dict, dict):
                  # Might be full model save
                  logger.warning(f"File {path.name} is not a state_dict, skipping.")

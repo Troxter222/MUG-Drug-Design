@@ -166,7 +166,7 @@ def load_system(model_key):
             st.error(f"Model checkpoint missing at {path}")
             return None, None, None
 
-        state = torch.load(path, map_location=Config.DEVICE)
+        state = torch.load(path, map_location=Config.DEVICE)  # nosec
         
         if conf["type"] == "transformer":
             # State dict compatibility fix

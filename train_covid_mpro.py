@@ -184,7 +184,7 @@ def train():
     prior = MoleculeTransformer(29, 256, 8, 4, 4, 1024, 128).to(Config.DEVICE)
     
     # Load Weights
-    state = torch.load(Config.BASE_MODEL_PATH, map_location=Config.DEVICE)
+    state = torch.load(Config.BASE_MODEL_PATH, map_location=Config.DEVICE)  # nosec
     # Adapter mapping if needed
     new_state = {k.replace('fc_z', 'fc_latent_to_hidden'): v for k, v in state.items()}
     

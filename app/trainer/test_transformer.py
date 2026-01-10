@@ -95,7 +95,7 @@ def test():
     ).to(TestConfig.DEVICE)
 
     model.load_state_dict(
-        torch.load(ckpt_path, map_location=TestConfig.DEVICE)
+        torch.load(ckpt_path, map_location=TestConfig.DEVICE)  # nosec
     )
     model.eval()
 

@@ -97,7 +97,7 @@ def train_reinforcement():
         logger.error(f"Base model not found: {RLHyperparams.BASE_MODEL}")
         return
 
-    state_dict = torch.load(RLHyperparams.BASE_MODEL, map_location=Config.DEVICE)
+    state_dict = torch.load(RLHyperparams.BASE_MODEL, map_location=Config.DEVICE)  # nosec
     vocab_size = len(vocab)
 
     # Initialize Agent

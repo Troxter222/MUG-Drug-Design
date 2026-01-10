@@ -95,7 +95,7 @@ def setup():
         if not raw_pdb.exists():
             logger.info(f"⬇Downloading {data['pdb_id']}...")
             url = f"https://files.rcsb.org/download/{data['pdb_id']}.pdb"
-            r = requests.get(url)
+            r = requests.get(url, timeout=30)
             with open(raw_pdb, "wb") as f:
                 f.write(r.content)
         

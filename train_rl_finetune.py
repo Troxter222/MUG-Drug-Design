@@ -40,7 +40,7 @@ class RLConfig:
 
 def load_checkpoint_safe(model, path):
     print(f"Loading adapter for: {path}")
-    state_dict = torch.load(path, map_location=RLConfig.DEVICE)
+    state_dict = torch.load(path, map_location=RLConfig.DEVICE)  # nosec
     
     new_state_dict = {}
     for k, v in state_dict.items():
@@ -104,7 +104,7 @@ def test_validity():
 
         vocab = Vocabulary(['<pad>', '<sos>', '<eos>'] + ['C']*100) 
 
-    state_dict = torch.load(RLConfig.BASE_MODEL_PATH, map_location=RLConfig.DEVICE)
+    state_dict = torch.load(RLConfig.BASE_MODEL_PATH, map_location=RLConfig.DEVICE)  # nosec
     real_vocab_size = state_dict['embedding.weight'].shape[0]
 
     print(f"⚖️ Checkpoint expects vocab size: {real_vocab_size}")

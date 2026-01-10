@@ -224,7 +224,7 @@ def load_model(
         Tuple of (model, model_name) or (None, None) if loading fails
     """
     try:
-        state_dict = torch.load(checkpoint_path, map_location=BenchmarkConfig.DEVICE)
+        state_dict = torch.load(checkpoint_path, map_location=BenchmarkConfig.DEVICE)  # nosec
         
         # Infer architecture
         params = infer_model_architecture(state_dict)

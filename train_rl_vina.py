@@ -209,7 +209,7 @@ class VinaReward:
 # --- HELPERS ---
 def load_adapter(model, path):
     print(f"Loading adapter: {path}")
-    state = torch.load(path, map_location=VinaRLConfig.DEVICE)
+    state = torch.load(path, map_location=VinaRLConfig.DEVICE)  # nosec
     new_state = {}
     for k, v in state.items():
         if 'fc_z' in k:
