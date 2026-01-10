@@ -17,3 +17,5 @@ pandas
 plotly
 matplotlib
 fpdf
+joblib
+scikit-learn
