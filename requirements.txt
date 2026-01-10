@@ -19,3 +19,6 @@ matplotlib
 fpdf
 joblib
 scikit-learn
+fastapi
+uvicorn
+pydantic

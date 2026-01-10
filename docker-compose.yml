@@ -9,7 +9,7 @@ services:
     ports:
       - "8501:8501"
     environment:
-      - DEVICE=cpu  # Change to cuda, if configured nvidia-docker
+      - DEVICE=cuda  # Change to cpu, if not configured nvidia-docker
     volumes:
       - ./data:/app/data             # Save data, after reboot
       - ./checkpoints:/app/checkpoints # Save model
@@ -23,9 +23,23 @@ services:
     restart: always
     environment:
       - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
-      - DEVICE=cpu
+      - DEVICE=cuda
     volumes:
       - ./data:/app/data
       - ./checkpoints:/app/checkpoints
       - ./logs:/app/logs
     command: python run.py
+
+    # REST API Service
+  mug-api:
+    build: .
+    container_name: mug_api
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - DEVICE=cuda # Use cpu if GPU not available
+    volumes:
+      - ./data:/app/data
+      - ./checkpoints:/app/checkpoints
+    command: uvicorn app.api:app --host 0.0.0.0 --port 8000
